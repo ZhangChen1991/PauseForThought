@@ -1,0 +1,233 @@
+/**************************
+instructions
+**************************/
+.instruction {
+  width: 1000px;
+}
+
+
+/**************************
+game area that contains all elements of a game
+**************************/
+
+.game-container{
+  width: 800px;
+  height: 500px;
+  /*border: 2px black solid;*/
+  position: relative;
+}
+
+/**************************
+text instruction for game 1
+**************************/
+
+#game1_instruction{
+  height:30px;
+  width:100%;
+  top:10px;
+  position: absolute;
+  text-align: center;
+  font-size: 30px;
+}
+
+/**************************
+text outcome for game 1
+**************************/
+
+#game1_outcome{
+  height:30px;
+  width:100%;
+  bottom:100px;
+  position: absolute;
+  text-align: center;
+  font-size: 45px;
+}
+
+/**************************
+options in game 1
+**************************/
+
+.F_button {
+  width: 75px;
+  height: 75px;
+  position: absolute;
+  position: absolute;
+  top: 80%; left: 20%;
+  transform: translate(-50%,-50%);
+  padding: 10px;
+}
+
+.F_button img{
+  width: 100%;
+}
+
+.J_button {
+  width: 75px;
+  height: 75px;
+  position: absolute;
+  top: 80%; left: 80%;
+  transform: translate(-50%,-50%);
+  padding: 10px;
+}
+
+.J_button img{
+  width: 100%;
+}
+
+/* Add border when an option is selected */
+.selected {
+  border: 4px solid #BADA55;
+  border-radius: 10px;
+}
+
+.unselected{
+  border: 4px solid #FFFFFF;
+  border-radius: 10px;
+}
+
+/**************************
+color patch in game 1
+**************************/
+
+/* code from https://3dtransforms.desandro.com/card-flip */
+
+/**************************
+flip color animation
+**************************/
+
+/* The flip color container - set the width and height to whatever you want. We have added the border property to demonstrate that the flip itself goes out of the box on hover (remove perspective if you don't want the 3D effect */
+.flip-color {
+  padding: 5px;
+  width: 250px;
+  height: 250px;
+  perspective: 1000px; /* Remove this if you don't want the 3D effect */
+  position: absolute;
+  top: 40%; left: 50%;
+  transform: translate(-50%,-50%);
+}
+
+/* This container is needed to position the front and back side */
+.flip-color-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.5s;
+  transform-style: preserve-3d;
+}
+
+/* resize all images to fit the flip-card-inner container */
+.flip-color-inner img{
+  width: 100%;
+  height:100%;
+}
+
+/* Do an horizontal flip of a card */
+.is-flipped {
+  transform: rotateY(180deg);
+}
+
+/* Position the front and back side */
+.flip-color-front, .flip-color-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden; /* Safari */
+  backface-visibility: hidden;
+}
+
+/* Style the back side */
+.flip-color-back {
+  transform: rotateY(180deg);
+}
+
+
+/**************************
+options in game 2
+**************************/
+
+
+#pie-container-left {
+  padding: 10px;
+  width: 250px;
+  height: 250px;
+  perspective: 1000px; /* Remove this if you don't want the 3D effect */
+  position: absolute;
+  top: 50%; left: 25%;
+  transform: translate(-50%,-50%);
+}
+
+#pie-container-right {
+  padding: 10px;
+  width: 250px;
+  height: 250px;
+  perspective: 1000px; /* Remove this if you don't want the 3D effect */
+  position: absolute;
+  top: 50%; left: 75%;
+  transform: translate(-50%,-50%);
+}
+
+.pie-chart {
+	width: 250px;
+	height: 250px;
+	border-radius: 50%;
+}
+
+.pie-chart-green {
+	width: 250px;
+	height: 250px;
+	border-radius: 50%;
+  background: conic-gradient(green 0% 100%, red 100% 100%);
+}
+
+.pie-chart-red {
+	width: 250px;
+	height: 250px;
+	border-radius: 50%;
+  background: conic-gradient(green 0% 0%, red 0% 100%);
+}
+
+
+
+#pie-text-left {
+	width: 100px;
+	height: 45px;
+  text-align: center;
+  font-size: 45px;
+  position: absolute;
+  top: 12%; left: 25%;
+  transform: translate(-50%,-50%);
+}
+
+#pie-text-right {
+	width: 100px;
+	height: 45px;
+  text-align: center;
+  font-size: 45px;
+  position: absolute;
+  top: 12%; left: 75%;
+  transform: translate(-50%,-50%);
+}
+
+#game2_outcome_left{
+  width: 200px;
+	height: 45px;
+  text-align: center;
+  font-size: 45px;
+  position: absolute;
+  top: 89%; left: 25%;
+  transform: translate(-50%,-50%);
+}
+
+#game2_outcome_right{
+  width: 200px;
+	height: 45px;
+  text-align: center;
+  font-size: 45px;
+  position: absolute;
+  top: 89%; left: 75%;
+  transform: translate(-50%,-50%);
+}
+
+/**************************
+text outcome for game 2
+**************************/

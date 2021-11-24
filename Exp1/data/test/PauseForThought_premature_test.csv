@@ -1,0 +1,16 @@
+subject_ID, trial_number, phase, response_number, key, rt
+test,21,game2_delay,1,space,2001.3999999761581
+test,21,game2_delay,2,space,2159.2000000476837
+test,21,game2_delay,3,space,4265.100000023842
+test,22,game1_choice,1,space,1336.7999999523163
+test,29,game2_delay,1,space,1558.6000000238419
+test,29,game2_delay,2,space,1734.1000000238419
+test,29,game2_delay,3,space,1902.2999999523163
+test,40,game2_start,1,j,716.5
+test,46,game2_delay,1,space,3031.7999999523163
+test,86,game2_start,1,j,568.1999999284744
+test,91,game1_start,1,j,304.6999999284744
+test,102,game1_outcome,1,j,28.799999952316284
+test,121,game2_start,1,f,572.5
+test,123,game1_start,1,j,316.3000000715256
+test,123,game1_start,2,j,648.2000000476837
