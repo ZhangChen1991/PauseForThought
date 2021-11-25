@@ -130,6 +130,8 @@ var factors = {
 var full_design = jsPsych.randomization.factorial(factors, 1);
 
 // create some 'catch' trials, in which the non-gamble amount exceeds the gamble amount
+// we include these 'catch' trials as attention checks, to see if participants process
+// the win amounts and win probability information before making a choice.
 var factors_catch_trials = {
   game1_outcome: factor_game1_outcome,
   delay: ['no'],
@@ -167,12 +169,14 @@ while (true) {
     // use the catch trial every 25 trials
     if (trial_number % 25 === 0) {
 
+      // Array.pop() returns the last element in the array
       var current_trial = trials_catch.pop();
 
       // in catch trials, the non-gamble option has a higher amount
       current_trial.game2_G_amount = current_trial.game2_expected_value/current_trial.game2_win_prob;
 
-      // randomly generate a value of 10, 20 or 30
+      // randomly generate a value of 10, 20 or 30,
+      // to make the non-gamble amount larger than the gamble amount
       var ramdom_increment = Math.ceil(Math.random()*3) * 10;
       current_trial.game2_NG_amount = current_trial.game2_G_amount + ramdom_increment;
 
@@ -345,7 +349,7 @@ var guessing_instruction = {
   }
 };
 
-
+// as an exploratory measure, include the PGSI
 var PGSI_instruction = {
   type: 'instructions',
   pages: ['<img class = "instruction" src="Instructions/Slide11.png"></img>'],
@@ -412,6 +416,8 @@ var game1_start_screen = {
     game2_G_amount = jsPsych.timelineVariable('game2_G_amount', true);
 
     // compute the current game number and the number of games left
+    // we consider one guessing game + choice game as one trial,
+    // thus game number is trial_number * 2 - 1.
     var game_number = trial_number * 2 - 1
     var games_left = ntrials * 2 - game_number + 1;
 
@@ -423,7 +429,7 @@ var game1_start_screen = {
     if (game1_outcome === "win" ) {
       game1_text_instruction = 'Blue or Yellow?';
       game1_color_front = "mixed";
-      game1_outcome_message = "+ 40";
+      game1_outcome_message = "+ 40"; // game 1 has a fixed win/loss amount of 40 points
 
       // add the outcome of the current guessing game
       guessing_game_outcomes.push({game_number: game_number, amount: 40});
@@ -443,6 +449,8 @@ var game1_start_screen = {
       // add the outcome of the current guessing game
       guessing_game_outcomes.push({game_number: game_number, amount: 0});
 
+      // for the non-gamble trial, the card can be either blue or yellow
+      // randomly determine the color of the card
       if (Math.random() < 0.5) {
         game1_text_instruction = 'Blue only.';
         game1_color_front = "blue";
@@ -565,7 +573,8 @@ var game1_select_screen = {
     // Here based on which key participants have pressed, we change the corresponding option to 'selected'.
     game1_option_states[game1_respKey] = 'selected';
 
-    // determine which color to eventually show
+    // determine the color of the back side of the card
+    // when the current trial is a non-gamble trial, the back side color matches the front size
     if (game1_outcome === 'neutral'){
       if (game1_color_front === 'blue') {
         game1_color_back = 'blue';
@@ -573,12 +582,16 @@ var game1_select_screen = {
         game1_color_back = 'yellow';
       }
     } else if (game1_outcome === 'win'){
+      // when the current trial is a win, show blue if participant choose F
+      // and show yellow if participants choose J, so that their guess is correct
       if (game1_respKey === 'f'){
         game1_color_back = 'blue';
       } else {
         game1_color_back = 'yellow';
       }
     } else {
+      // when the current trial is a loss, show yellow if participant choose F
+      // and show blue if participants choose J, so that their guess is incorrect
       if (game1_respKey === 'f'){
         game1_color_back = 'yellow';
       } else {
@@ -699,9 +712,11 @@ var delay_screen = {
   invalid_choices: ['f', 'j', 'space'],
   on_start: function(delay_screen){
     if (delay === "yes") {
+      // when there is a pause, show 'Please wait...' for 5000 milliseconds
       delay_screen.stimulus = '<p style = "font-size: 30px">Please wait...</p>';
       delay_screen.trial_duration = 5000;
     } else{
+      // flash an empty screen for 50 ms when there is no pause
       delay_screen.stimulus = " ";
       delay_screen.trial_duration = 50;
     }
@@ -1012,6 +1027,10 @@ var email_screen = {
     data.task = 'email';
     data.email = email;
     data.total_points = total_points;
+
+    // we register email during data collection to contact the winner
+    // to give them the extra bonus. These files will be immediately deleted
+    // after finishing data collection.
   }
 };
 
