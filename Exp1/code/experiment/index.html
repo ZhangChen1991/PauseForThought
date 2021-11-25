@@ -129,7 +129,7 @@ var factors = {
 
 var full_design = jsPsych.randomization.factorial(factors, 1);
 
-// create some 'catch' trials, in which the non-gamble amount exceeds the gamble amount
+// create some 'catch' trials, in which the non-gamble amount exceeds the gamble amount //CE: why is this?
 var factors_catch_trials = {
   game1_outcome: factor_game1_outcome,
   delay: ['no'],
@@ -167,13 +167,13 @@ while (true) {
     // use the catch trial every 25 trials
     if (trial_number % 25 === 0) {
 
-      var current_trial = trials_catch.pop();
+      var current_trial = trials_catch.pop(); //CE: what does .pop() do?
 
       // in catch trials, the non-gamble option has a higher amount
       current_trial.game2_G_amount = current_trial.game2_expected_value/current_trial.game2_win_prob;
 
       // randomly generate a value of 10, 20 or 30
-      var ramdom_increment = Math.ceil(Math.random()*3) * 10;
+      var ramdom_increment = Math.ceil(Math.random()*3) * 10; //CE: 'ramdom'?
       current_trial.game2_NG_amount = current_trial.game2_G_amount + ramdom_increment;
 
 
@@ -242,7 +242,7 @@ var consent = {
   show_clickable_nav: true,
   button_label_next: "I agree",
   allow_backward: false
-};
+}; //CE: is it the 'new' one also saying that you keep their ID for credit purposes?
 
 
 /*********** Adjust volume ***********/
@@ -357,7 +357,7 @@ var PGSI_instruction = {
     task = 'PGSI';
     document.body.style.cursor = 'auto'; // show the mouse cursor
   }
-};
+}; //CE: oh for what are you using this?
 
 var UPPSP_instruction = {
   type: 'instructions',
@@ -412,7 +412,7 @@ var game1_start_screen = {
     game2_G_amount = jsPsych.timelineVariable('game2_G_amount', true);
 
     // compute the current game number and the number of games left
-    var game_number = trial_number * 2 - 1
+    var game_number = trial_number * 2 - 1 //CE: why time 2?
     var games_left = ntrials * 2 - game_number + 1;
 
     game1_start_screen.stimulus = '<p style = "font-size: 30px">Press space to start a <b>guessing</b> game.</p>' +
@@ -423,7 +423,7 @@ var game1_start_screen = {
     if (game1_outcome === "win" ) {
       game1_text_instruction = 'Blue or Yellow?';
       game1_color_front = "mixed";
-      game1_outcome_message = "+ 40";
+      game1_outcome_message = "+ 40"; // CE: game 1 points are always 40?
 
       // add the outcome of the current guessing game
       guessing_game_outcomes.push({game_number: game_number, amount: 40});
@@ -442,7 +442,7 @@ var game1_start_screen = {
 
       // add the outcome of the current guessing game
       guessing_game_outcomes.push({game_number: game_number, amount: 0});
-
+//CE: what are the upcoming lines for?
       if (Math.random() < 0.5) {
         game1_text_instruction = 'Blue only.';
         game1_color_front = "blue";
@@ -566,6 +566,7 @@ var game1_select_screen = {
     game1_option_states[game1_respKey] = 'selected';
 
     // determine which color to eventually show
+    //CE: I don't get exactly what is happening here
     if (game1_outcome === 'neutral'){
       if (game1_color_front === 'blue') {
         game1_color_back = 'blue';
@@ -703,7 +704,7 @@ var delay_screen = {
       delay_screen.trial_duration = 5000;
     } else{
       delay_screen.stimulus = " ";
-      delay_screen.trial_duration = 50;
+      delay_screen.trial_duration = 50; //CE: so there will be a 'flashing' of an empty screen for 50 ms every trial there is no pause?
     }
   },
   on_finish: function(data){
@@ -1013,7 +1014,7 @@ var email_screen = {
     data.email = email;
     data.total_points = total_points;
   }
-};
+}; //CE: you save the email address with their data? Is that in line with GDPR?
 
 
 /********************************************************
