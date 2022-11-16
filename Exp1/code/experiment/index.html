@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>Guessing Game</title>
+  <title>Wheel of Fortune</title>
   <script src="js/jspsych-6.2.0/jspsych.js"></script>
   <script src="js/jspsych-6.2.0/plugins/jspsych-fullscreen.js"></script>
   <script src="js/jspsych-6.2.0/plugins/jspsych-instructions.js"></script>
@@ -39,180 +39,137 @@ if (document.location.host) { // returns your host or null
 
 var timeline = []; // create an empty timeline variable
 
-// create empty arrays to save the outcomes of the guessing and the choice games
-var guessing_game_outcomes = [];
-var choice_game_outcomes = [];
+var subject_ID, age, gender, nationality; // demographic variables
 
-var task; // which task is it?
-var trial_number = 0; // trial number in each task
-var trial_condition; // trial condition in the guessing task, 'experimental' or 'catch'
+var exp_part; // exp_part, practice_game1, practice_game2, or exp.
+var block_number = 0; // current block number
+var N_block; // the total block number
+var trial_number = 0; // current trial number; note that in the experimental blocks, one trial consists of one game 1 and one game 2.
+var N_trial; // the total trial number in one block
+var trial_type; // trial type, experimental or catch (for game 2)
 
-// which color to use in game 1, can be 'mixed', 'blue' or 'yellow'
-var game1_color_front;
-
-// in case of gambling in game 1, the instruction will say 'Blue or Yellow?'
-// in case of non-gamble in game 1, the instruction will say 'Blue only.' or 'Yellow only'.
-var game1_text_instruction;
+var game1_color; // wheel color in game 1, can be 'mixed', 'blue' or 'yellow'
 
 var game1_startRT; // how quickly participants start game 1
-var premature_game1_start; // how many premature/invalid responses participants make before starting game 1
 
 var game1_respKey; // which key participants press in game 1, f or j
 var game1_respRT; // how quickly participants guess in game 1
-var premature_game1_choice; // how many premature/invalid responses participants make before choice in game 1
+var game1_guessed_color; // which color participants guess in game 1
 
 var game1_option_states; // the states of two options in game 1
-var game1_color_back; // the final color in game 1, can be blue or yellow
 var game1_outcome; // the outcome of game 1, win, loss or neutral
 var game1_outcome_message; // the text message for showing game 1 outcome
-var premature_game1_outcome; // how many premature/invalid responses participants make during the outcome phase of game 1
 
 var game2_startRT; // how quickly participants start game 2
-var premature_game2_start; // how many premature/invalid responses participants make before starting game 2
 
 var delay; // whether there is a delay between game 1 and game 2
-var premature_game2_delay; // how many premature/invalid responses participants make during the wait period
+var game2_delay_premature; // how many premature/invalid responses participants make during the wait period
 
-var game2_NG_amount; // the amount of non-gamble option in game 2
-var game2_G_amount; // the amount of gamble option in game 2
-var game2_win_prob; // the probability of winning for the gamble option in game 2
+// game 2 always consists of two options,
+// one of high win probability (HP) and one of low win probability (LP)
+var game2_HP_prob, game2_HP_amount; // the probability and amount of the HP option
+var game2_LP_prob, game2_LP_amount; // the probability and amount of the LP option
+var game2_pos; // the left right position of the two options in game 2, HP-LP or LP-HP
 
-var game2_pos; // the left right position of the gamble and non-gamble options in game 2
-var game2_probs; // the win probabilities of the left and right option
-var game2_amounts; // the win amount of the left and right option
+var game2_left_prob, game2_left_amount; // the probability and amount of the left option
+var game2_right_prob, game2_right_amount; // the probability and amount of the right option
+
+var game2_chosen_prob, game2_chosen_amount; // the probability and amount of the chosen option
+
 var game2_option_states; // the states of two options in game 2, 'unselected' or 'selected'
 
 var game2_respKey; // which key participants use in game 2
 var game2_respRT; // how quickly participants guess in game 2
-var game2_gambled; // whether participant chooses to gamble or not in game 2
-var premature_game2_choice; // how many premature/invalid responses participants make before choice in game 2
-var pie_back_color; // the color of the back side of a pie, can be 'green' or 'red'
+var game2_choice; // whether participants choose the HP or the LP option
 
 var game2_outcome; // the outcome of game 2, win or loss or neutral (non-gamble)
 var game2_outcome_amount; // the amount of points participants get in game 2
 var game2_outcome_message; // the text message for showing game 2 outcome
-var premature_game2_outcome; // how many premature/invalid responses participants make during the outcome phase of game 2
 
-var total_points = 0; // the total amount of points of the randomly selected games
+var game1_all_outcomes = []; // an empty array to save all outcomes from game 1
+var game2_all_outcomes = []; // an empty array to save all outcomes from game 2
 
 /* all images and audios used in the experiment */
-
 var instruct_images = ['Instructions/Slide1.png', 'Instructions/Slide2.png', 'Instructions/Slide3.png', 'Instructions/Slide4.png',
                        'Instructions/Slide5.png', 'Instructions/Slide6.png', 'Instructions/Slide7.png', 'Instructions/Slide8.png',
-                       'Instructions/Slide9.png', 'Instructions/Slide10.png', 'Instructions/Slide11.png', 'Instructions/Slide12.png'];
+                       'Instructions/Slide9.png', 'Instructions/Slide10.png', 'Instructions/Slide11.png', 'Instructions/Slide12.png',
+                       'Instructions/Slide13.png', 'Instructions/Slide14.png', 'Instructions/Slide15.png'];
 
-var all_images = ['images/blue.png', 'images/yellow.png', 'images/mixed.png', 'images/blue_F.png', 'images/yellow_J.png'];
-
-all_images = all_images.concat(instruct_images);
-
-var all_audios = ['card_flip.mp3'];
+var all_audios = ['cash.wav', 'buzz.wav'];
 
 /********************************************************
 Create trials to be used in the experiment
 ********************************************************/
 
-// all factors in the design
-var factor_game1_outcome = ['win', 'loss', 'neutral'];
+// common factors in the design
+var factor_game1_outcome = ['win', 'loss'];
 var factor_delay = ['no', 'yes'];
-var factor_game2_expected_value = [20, 30, 40, 50, 60];
-var factor_game2_win_prob = [2/3, 1/2, 1/3, 1/4];
-var factor_trial_condition = ['experimental'];
-
-// create the full design
-var factors = {
-  game1_outcome:factor_game1_outcome,
-  delay: factor_delay,
-  game2_expected_value: factor_game2_expected_value,
-  game2_win_prob: factor_game2_win_prob,
-  trial_condition: factor_trial_condition
-}
-
-var full_design = jsPsych.randomization.factorial(factors, 1);
-
-// create some 'catch' trials, in which the non-gamble amount exceeds the gamble amount
-// we include these 'catch' trials as attention checks, to see if participants process
-// the win amounts and win probability information before making a choice.
-var factors_catch_trials = {
-  game1_outcome: factor_game1_outcome,
-  delay: ['no'],
-  game2_expected_value: [20, 30],
-  game2_win_prob: [2/3, 1/2],
-  trial_condition: ['catch']
-}
-
-var full_design_catch = jsPsych.randomization.factorial(factors_catch_trials, 1);
-
-// the total number of trials;
-// note one trial here stands for a pair of two games.
-var ntrials = full_design.length + 5; // we will use 5 catch trials
-
-// create all trials used in the experiment, and then
-// randomize the trials with the constraint that the delay trials
-// do not occurr four times in a row
-while (true) {
-
-  // an empty list to save the trials generated later on
-  var trials = [];
-
-  // randomly shuffle the experimental and the catch trials
-  full_design = jsPsych.randomization.shuffle(full_design);
-  full_design_catch = jsPsych.randomization.shuffle(full_design_catch);
-
-  // make copies of the arrays
-  trials_exp = [...full_design];
-  trials_catch = [...full_design_catch];
-
-  for (var i = 0; i < ntrials; i++) {
-
-    trial_number = i+1;
-
-    // use the catch trial every 25 trials
-    if (trial_number % 25 === 0) {
-
-      // Array.pop() returns the last element in the array
-      var current_trial = trials_catch.pop();
-
-      // in catch trials, the non-gamble option has a higher amount
-      current_trial.game2_G_amount = current_trial.game2_expected_value/current_trial.game2_win_prob;
-
-      // randomly generate a value of 10, 20 or 30,
-      // to make the non-gamble amount larger than the gamble amount
-      var ramdom_increment = Math.ceil(Math.random()*3) * 10;
-      current_trial.game2_NG_amount = current_trial.game2_G_amount + ramdom_increment;
+var factor_game2_pos = ['HP-LP', 'LP-HP'];
 
 
-    } else{ // otherwise use experimental trials
-      var current_trial = trials_exp.pop();
+// trials from the Vancouver gambling task, as experimental trials
+var factor_risky_vs_risky =
+  [{game2_HP_prob: 0.6, game2_HP_amount: 10, game2_LP_prob: 0.4, game2_LP_amount: 40},
+   {game2_HP_prob: 0.7, game2_HP_amount: 10, game2_LP_prob: 0.3, game2_LP_amount: 50},
+   {game2_HP_prob: 0.6, game2_HP_amount: 20, game2_LP_prob: 0.4, game2_LP_amount: 50},
+   {game2_HP_prob: 0.7, game2_HP_amount: 10, game2_LP_prob: 0.3, game2_LP_amount: 30},
+   {game2_HP_prob: 0.6, game2_HP_amount: 30, game2_LP_prob: 0.4, game2_LP_amount: 50},
+   {game2_HP_prob: 0.6, game2_HP_amount: 40, game2_LP_prob: 0.4, game2_LP_amount: 50},
+   {game2_HP_prob: 0.7, game2_HP_amount: 20, game2_LP_prob: 0.3, game2_LP_amount: 30},
+   {game2_HP_prob: 0.7, game2_HP_amount: 30, game2_LP_prob: 0.3, game2_LP_amount: 40},
+   {game2_HP_prob: 0.8, game2_HP_amount: 10, game2_LP_prob: 0.2, game2_LP_amount: 20},
+   {game2_HP_prob: 0.8, game2_HP_amount: 20, game2_LP_prob: 0.2, game2_LP_amount: 30}
+  ]
 
-      // in experimental trials, the expected values of both optios match
-      current_trial.game2_G_amount = current_trial.game2_expected_value/current_trial.game2_win_prob;
 
-      current_trial.game2_NG_amount = current_trial.game2_expected_value;
-
-    }
-
-    // add trial number
-    current_trial.trial_number = trial_number;
-
-    // add the selected trial to the overall array
-    trials.push(current_trial);
+  // create the experimental trials
+  var factors = {
+    trial_type: ['exp'],
+    game1_outcome:factor_game1_outcome,
+    delay: factor_delay,
+    game2_pos: factor_game2_pos,
+    game2_trial:factor_risky_vs_risky
   }
 
-  // create a counter, to count how often three delay trials occur in a row
-  var counter = 0;
+  var exp_trials = jsPsych.randomization.factorial(factors, 1);
 
-  for (var i = 0; i < (trials.length - 3); i++) {
+  /****** Define catch trials ******/
 
-    if (trials[i].delay === "yes" && trials[i+1].delay === "yes" && trials[i+2].delay === "yes" && trials[i+3].delay === "yes") {
-      counter ++;
-    }
+  // add some catch trials, in which one option dominates another
+  var factor_catch =
+    [{game2_HP_prob: 0.6, game2_HP_amount: 40, game2_LP_prob: 0.2, game2_LP_amount: 10},
+     {game2_HP_prob: 0.7, game2_HP_amount: 30, game2_LP_prob: 0.4, game2_LP_amount: 20},
+     {game2_HP_prob: 0.8, game2_HP_amount: 50, game2_LP_prob: 0.3, game2_LP_amount: 30},
+     {game2_HP_prob: 0.8, game2_HP_amount: 50, game2_LP_prob: 0.2, game2_LP_amount: 20},
+     {game2_HP_prob: 0.7, game2_HP_amount: 40, game2_LP_prob: 0.4, game2_LP_amount: 10}]
+
+  // create the catch trials
+  var factors = {
+    trial_type: ['catch'],
+    game1_outcome:factor_game1_outcome,
+    delay: ['no'],
+    game2_pos: factor_game2_pos,
+    game2_trial:factor_catch
   }
 
-  if (counter === 0){
-    break;
-  }
+  var catch_trials = jsPsych.randomization.factorial(factors, 1);
 
-}
+  /****** Divide the trials into 4 blocks ******/
+  // number of each type of trials in each block
+  var n1 = exp_trials.length/4;
+  var n2 = catch_trials.length/4;
+
+  var block1 = [...exp_trials.slice(n1*0, n1*1), ...catch_trials.slice(n2*0,n2*1)];
+  var block2 = [...exp_trials.slice(n1*1, n1*2), ...catch_trials.slice(n2*1,n2*2)];
+  var block3 = [...exp_trials.slice(n1*2, n1*3), ...catch_trials.slice(n2*2,n2*3)];
+  var block4 = [...exp_trials.slice(n1*3, n1*4), ...catch_trials.slice(n2*3,n2*4)];
+
+  block1 = jsPsych.randomization.shuffle(block1);
+  block2 = jsPsych.randomization.shuffle(block2);
+  block3 = jsPsych.randomization.shuffle(block3);
+  block4 = jsPsych.randomization.shuffle(block4);
+
+  N_block = 6; // the task contains 8 blocks in total, 2 practice and 4 experimental blocks.
 
 /********************************************************
 Informed consent and demographic information
@@ -253,7 +210,7 @@ var consent = {
 
 var adjust_volume = {
   type: 'html-keyboard-response',
-  stimulus: '<p>This experiment contains some sound effects. Turn on your speaker and adjust the volume of your speaker to a comfortable level. <br><br>You can test the sound below. Press J to continue once you are ready.</p><audio controls src="card_flip.mp3"></audio>',
+  stimulus: '<p>This experiment contains some sound effects. Turn on your speaker and adjust the volume of your speaker to a comfortable level. <br><br>You can test the sound below, by click on the play button. </p><audio controls src="cash.wav"></audio><p><br><br> Once you are ready, press J to continue.</p>',
   choices: ['j']
 }
 
@@ -263,16 +220,12 @@ var adjust_volume = {
 var prolific = {
   type: 'survey-text',
   questions: [
-    {prompt: "Enter your name. We need your name to give you credit in Sona: ", required: true}],
+    {prompt: "Enter your prolific ID: ", required: true}],
   on_finish: function(data) {
     // get subject ID
     var responses = JSON.parse(data.responses);
-    var subject_ID = responses.Q0;
+    subject_ID = responses.Q0;
 
-    // add subject_ID to jsPsych data
-    jsPsych.data.addProperties({
-      subject_ID: subject_ID,
-    });
   }
 };
 
@@ -293,12 +246,8 @@ var age_nationality = {
     {prompt: "Please enter your nationality", required: true}],
   on_finish: function(data) {
     var responses = JSON.parse(data.responses);
-    var age = responses.Q0;
-    var nationality = responses.Q1;
-    jsPsych.data.addProperties({
-      age: age,
-      nationality: nationality
-    });
+    age = responses.Q0;
+    nationality = responses.Q1;
   }
 };
 
@@ -312,10 +261,7 @@ var gender = {
   }],
   on_finish: function(data) {
     var responses = JSON.parse(data.responses);
-    var gender = responses.Q0;
-    jsPsych.data.addProperties({
-      gender: gender
-    });
+    gender = responses.Q0;
   }
 };
 
@@ -327,32 +273,73 @@ Instruction pages
 ********************************************************/
 
 
-var guessing_instruction = {
+var instruction_game1_practice = {
   type: 'instructions',
   pages: ['<img class = "instruction" src="Instructions/Slide2.png"></img>',
           '<img class = "instruction" src="Instructions/Slide3.png"></img>',
           '<img class = "instruction" src="Instructions/Slide4.png"></img>',
           '<img class = "instruction" src="Instructions/Slide5.png"></img>',
           '<img class = "instruction" src="Instructions/Slide6.png"></img>',
-          '<img class = "instruction" src="Instructions/Slide7.png"></img>',
-          '<img class = "instruction" src="Instructions/Slide8.png"></img>',
-          '<img class = "instruction" src="Instructions/Slide9.png"></img>',
-          '<img class = "instruction" src="Instructions/Slide10.png"></img>'],
+          '<img class = "instruction" src="Instructions/Slide7.png"></img>'],
   allow_backward: true,
   key_forward: 'j',
   key_backward: 'f',
   on_finish: function(){
-    // reset trial number and change task name
+
+    exp_part = 'practice_game1';
+
+    // hide the mouse cursor
+    document.body.style.cursor = 'none';
+
+    // set, block number, trial number, the total number of trials and total points
+    block_number = block_number + 1;
     trial_number = 0;
-    task = 'guessing';
+    N_trial = practice_game1.length;
+
+
+  }
+};
+
+var instruction_game2_practice = {
+  type: 'instructions',
+  pages: ['<img class = "instruction" src="Instructions/Slide8.png"></img>',
+          '<img class = "instruction" src="Instructions/Slide9.png"></img>',
+          '<img class = "instruction" src="Instructions/Slide10.png"></img>',
+          '<img class = "instruction" src="Instructions/Slide11.png"></img>',
+          '<img class = "instruction" src="Instructions/Slide12.png"></img>',
+          '<img class = "instruction" src="Instructions/Slide13.png"></img>'],
+  allow_backward: true,
+  key_forward: 'j',
+  key_backward: 'f',
+  on_finish: function(){
+
+    exp_part = 'practice_game2';
+
+    // set, block number, trial number, the total number of trials and total points
+    block_number = block_number + 1;
+    trial_number = 0;
+    N_trial = practice_game2.length;
+
+  }
+};
+
+var instruction_exp = {
+  type: 'instructions',
+  pages: ['<img class = "instruction" src="Instructions/Slide14.png"></img>'],
+  allow_backward: true,
+  key_forward: 'j',
+  key_backward: 'f',
+  on_finish: function(){
+    exp_part = 'exp';
     document.body.style.cursor = 'none'; // hide the mouse cursor
   }
 };
 
+
 // as an exploratory measure, include the PGSI
 var PGSI_instruction = {
   type: 'instructions',
-  pages: ['<img class = "instruction" src="Instructions/Slide11.png"></img>'],
+  pages: ['<img class = "instruction" src="Instructions/Slide15.png"></img>'],
   allow_backward: false,
   key_forward: 'j',
   on_finish: function(){
@@ -363,14 +350,61 @@ var PGSI_instruction = {
   }
 };
 
-var UPPSP_instruction = {
-  type: 'instructions',
-  pages: ['<img class = "instruction" src="Instructions/Slide12.png"></img>'],
-  allow_backward: false,
-  key_forward: 'j',
-  on_start: function() {
+
+var bonus = {
+  type: 'html-keyboard-response',
+  stimulus: 'none',
+  on_start: function(bonus){
+
     document.body.style.cursor = 'auto'; // show the mouse cursor
-  }
+
+    game1_all_outcomes = jsPsych.randomization.shuffle(game1_all_outcomes);
+    game2_all_outcomes = jsPsych.randomization.shuffle(game2_all_outcomes);
+
+    var total_points = 0;
+
+    // randomly pick 2 guessing game
+    var html_string = "<p>This is the end of this experiment. Thank you for your participation!</p>" +
+      "<p>The program has randomly picked the following 4 guessing games:</p>";
+
+    for (var i = 0; i < 4; i++) {
+      var one_guess_game = game1_all_outcomes[i];
+      html_string = html_string + "<p>In Block " + one_guess_game['block_number']+ ", Trial " + one_guess_game['trial_number'] + ", you get " + one_guess_game['outcome']+ " cents.</p>";
+
+      total_points = total_points + one_guess_game['outcome'];
+    }
+
+    // randomly pick 4 choice games
+    html_string = html_string + "<p>The program has randomly picked the following 4 choice games:</p>";
+
+    for (var i = 0; i < 4; i++) {
+      one_guess_game = game2_all_outcomes[i];
+      html_string = html_string + "<p>In Block " + one_guess_game['block_number']+ ", Trial " + one_guess_game['trial_number'] + ", you get " + one_guess_game['outcome']+ " cents.</p>";
+
+      total_points = total_points + one_guess_game['outcome'];
+    }
+
+    // add the final outcome
+    if (total_points <= 0) {
+      var bonus_amount = 0;
+    } else if (total_points >= 100) {
+      var bonus_amount = 1;
+    } else{
+      var bonus_amount = total_points/100;
+    }
+
+    html_string = html_string +
+      "<p>In total, you get " + total_points + " cents. You will therefore receive " + bonus_amount + " British pound as your extra bonus.</p>" +
+      "<p>Press J to go to the next page.</p>";
+
+    bonus.stimulus = html_string;
+
+    // save the output to a file
+    var data_row = subject_ID + ',' + total_points + ',' + bonus_amount + '\n';
+    appendData('PauseForThought_bonus_'+ subject_ID +'.csv', data_row);
+
+  },
+  choices: ['j']
 };
 
 
@@ -383,21 +417,53 @@ var debrief = {
 
     debrief.stimulus = "<p>This is the end of this experiment. Thank you for your participation!</p>" +
     "<p>In this experiment, we are interested in how previous wins and losses may influence how much risk people are willing to take.</p>" +
-    "<p>Furthermore, we tested whether inserting a short break would have an influence on people's tendency to take risks (e.g., by choosing to gamble or not).</p>" +
+    "<p>Furthermore, we tested whether inserting a short break would have an influence on people's tendency to take risks.</p>" +
     "<p>We really appreciate your participation and contribution to this research. If you have any questions, you can contact the researcher at zhang.chen@ugent.be.</p><br><br>"+
-    "<p>You can close this window now.</p>";
+    "<p><a href='https://app.prolific.co/submissions/complete?cc=CW5WUENI'>Click here to complete the experiment and return to Prolific.</a></p>" +
+    "<p>Or copy the completion code: CW5WUENI</p>";
 
   },
   choices: jsPsych.NO_KEYS
 };
 
 
+/********************************************************
+Get parameters of the current trial
+********************************************************/
+var get_parameters = {
+  type: 'html-keyboard-response-custom',
+  stimulus: ' ',
+  trial_duration: 0,
+  on_start: function(){
+
+    // get the parameters of the current trial
+    trial_type = jsPsych.timelineVariable('trial_type', true);
+    game1_outcome = jsPsych.timelineVariable('game1_outcome', true);
+    delay = jsPsych.timelineVariable('delay', true);
+    game2_pos = jsPsych.timelineVariable('game2_pos', true);
+
+    game2_trial = jsPsych.timelineVariable('game2_trial', true);
+    game2_HP_prob = game2_trial.game2_HP_prob;
+    game2_HP_amount = game2_trial.game2_HP_amount;
+    game2_LP_prob = game2_trial.game2_LP_prob;
+    game2_LP_amount = game2_trial.game2_LP_amount;
+  }
+};
 
 /********************************************************
-Events that make up a trial in the guessing game
+Events that make up a trial in game 1
 ********************************************************/
 
 /******* start game 1 *******/
+function game1_start_screen_html(){
+
+  var game_html =
+    '<div id = "game-interface">' +
+    '<div id = "start-message"><p>Game ' + trial_number + ' of ' + N_trial+ '<br><br>Press the space bar to start a <b>guess</b> game.</p></div>' +
+    '</div>';
+
+  return game_html;
+};
 
 var game1_start_screen = {
   type: 'html-keyboard-response-custom',
@@ -406,105 +472,34 @@ var game1_start_screen = {
   invalid_choices: ['f', 'j'],
   on_start: function(game1_start_screen){
 
-    // get the parameters of the current trial
-    trial_number = jsPsych.timelineVariable('trial_number', true);
-    trial_condition = jsPsych.timelineVariable('trial_condition', true);
-    game1_outcome = jsPsych.timelineVariable('game1_outcome', true);
-    delay = jsPsych.timelineVariable('delay', true);
-    game2_NG_amount = jsPsych.timelineVariable('game2_NG_amount', true);
-    game2_win_prob = jsPsych.timelineVariable('game2_win_prob', true);
-    game2_G_amount = jsPsych.timelineVariable('game2_G_amount', true);
+    // compute the current trial number
+    trial_number = trial_number + 1;
 
-    // compute the current game number and the number of games left
-    // we consider one guessing game + choice game as one trial,
-    // thus game number is trial_number * 2 - 1.
-    var game_number = trial_number * 2 - 1
-    var games_left = ntrials * 2 - game_number + 1;
-
-    game1_start_screen.stimulus = '<p style = "font-size: 30px">Press space to start a <b>guessing</b> game.</p>' +
-                                  '<p style = "font-size: 25px">' + games_left + ' games left.</p>';
-
-    // determine the text message, the type of color card,
-    // and the outcome message based on the outcome of game 1
-    if (game1_outcome === "win" ) {
-      game1_text_instruction = 'Blue or Yellow?';
-      game1_color_front = "mixed";
-      game1_outcome_message = "+ 40"; // game 1 has a fixed win/loss amount of 40 points
-
-      // add the outcome of the current guessing game
-      guessing_game_outcomes.push({game_number: game_number, amount: 40});
-
-    } else if (game1_outcome === 'loss') {
-      game1_text_instruction = 'Blue or Yellow?';
-      game1_color_front = "mixed";
-      game1_outcome_message = "- 40";
-
-      // add the outcome of the current guessing game
-      guessing_game_outcomes.push({game_number: game_number, amount: -40});
-
-    } else {
-
-      game1_outcome_message = "0";
-
-      // add the outcome of the current guessing game
-      guessing_game_outcomes.push({game_number: game_number, amount: 0});
-
-      // for the non-gamble trial, the card can be either blue or yellow
-      // randomly determine the color of the card
+    // based on the predetermined outcome, decide the color of the wheel
+    if (game1_outcome === "neutral") {
       if (Math.random() < 0.5) {
-        game1_text_instruction = 'Blue only.';
-        game1_color_front = "blue";
-      }else{
-        game1_text_instruction = 'Yellow only.';
-        game1_color_front = "yellow";
+        game1_color = "blue";
+      } else {
+        game1_color = "yellow";
       }
+    } else {
+      game1_color = "mixed";
     }
 
-    // randomly determine the left-right position of gamble and non-gamble
-    // options in game 2
-    if (Math.random() < 0.5) {
-      game2_pos = "g-left-ng-right";
-    } else{
-      game2_pos = "ng-left-g-right";
-    }
-
-    // based on the left-right position, determine the win prob and amount
-    if (game2_pos === "g-left-ng-right"){
-      game2_probs = [game2_win_prob * 100, 100];
-      game2_amounts = [game2_G_amount, game2_NG_amount];
-    } else{
-      game2_probs = [100, game2_win_prob * 100];
-      game2_amounts = [game2_NG_amount, game2_G_amount];
-    }
-
-    // intially, all options in both games are 'unselected'
+    // intially, both options in game 1 and in game 2 are 'unselected'
     game1_option_states = {f:'unselected', j:'unselected'};
     game2_option_states = {f:'unselected', j:'unselected'};
+
+    // create the stimulus to be presented in game 1
+    game1_start_screen.stimulus = game1_start_screen_html();
 
   },
   on_finish: function(data){
 
-    // register the number of premature/invalid responses
-    premature_game1_start = data.invalid_count;
-
-    // record premature responses if they occur
-    if(premature_game1_start > 0){
-      data.record_premature = 'yes';
-      data.phase = 'game1_start';
-    }
-
     // register how quickly participants start, with the space bar
-    game1_startRT = data.rt;
+    game1_startRT = Math.round(data.rt);
 
   }
-};
-
-// add a blank screen of 50 milliseconds
-var blank_screen = {
-  type: 'html-keyboard-response-custom',
-  stimulus: ' ',
-  choices: jsPsych.NO_KEYS,
-  trial_duration:50
 };
 
 /******* Play game 1 *******/
@@ -513,135 +508,175 @@ var blank_screen = {
 function game1_select_screen_html(){
 
   var game_html =
-    '<div class = "game-container">' +
-    '<img src onerror="">' +
-    '<div id="game1_instruction">' + game1_text_instruction+'</div>' +
-    '<div class = "F_button unselected"><img src="images/blue_F.png"></div>' +
-    '<div class = "J_button unselected"><img src="images/yellow_J.png"></div>' +
-    '<div class="flip-color">' +
-    '<div id = "color_card" class="flip-color-inner">' +
-    '<div class="flip-color-front"><img src="images/' + game1_color_front+'.png"></div>' +
-    '<div class="flip-color-back"><img src="images/blue.png"></div>' +
+    '<div id = "game-interface">' +
+    '<div id = "game1-arrow"><p>&#x2193</p></div>' +
+    '<div id = "game1-wheel">';
+
+  if (game1_color === "yellow") {
+    game_html = game_html +
+      '<div class = "pie-chart" style="background: conic-gradient(#FFFF00 0% 100%);"></div>';
+  } else if (game1_color === "blue") {
+    game_html = game_html +
+      '<div class = "pie-chart" style="background: conic-gradient(#00FFFF 0% 100%);"></div>';
+  } else{
+    game_html = game_html +
+      '<div class = "pie-chart" style="background: conic-gradient(#FFFF00 0% 10%, #00FFFF 10% 20%, #FFFF00 20% 30%, #00FFFF 30% 40%, #FFFF00 40% 50%, #00FFFF 50% 60%, #FFFF00 60% 70%, #00FFFF 70% 80%, #FFFF00 80% 90%, #00FFFF 90% 100%);"></div>';
+  }
+
+  // add the rest of the html elements
+  game_html = game_html +
+    '<div class = "radius deg_0"></div>' +
+    '<div class = "radius deg_10"></div>' +
+    '<div class = "radius deg_20"></div>' +
+    '<div class = "radius deg_30"></div>' +
+    '<div class = "radius deg_40"></div>' +
+    '<div class = "radius deg_50"></div>' +
+    '<div class = "radius deg_60"></div>' +
+    '<div class = "radius deg_70"></div>' +
+    '<div class = "radius deg_80"></div>' +
+    '<div class = "radius deg_90"></div>' +
     '</div>' +
-    '</div>' +
-    '<audio id="flip_audio" src="card_flip.mp3"></audio>' +
-    '<div id = "game1_outcome"></div>' +
-    '</div>' +
-    '</div>' ;
+    '<div id = "game1-left-button" class = "unselected"><p>F</p></div>' +
+    '<div id = "game1-right-button" class = "unselected"><p>J</p></div>' +
+    '</div>';
 
   return game_html;
 };
 
 var game1_select_screen = {
-  type: 'html-keyboard-response-custom', // custom plugin
+  type: 'html-keyboard-response-custom',
   stimulus: 'placeholder',
+  choices: ['f', 'j'],
+  invalid_choices: ['space'],
   on_start: function(game1_select_screen){
     game1_select_screen.stimulus = game1_select_screen_html();
-
-    // depending on the type of color card, determine which keys are allowed
-    // and accordingly which keys are invalid
-    if (game1_color_front === 'mixed'){
-      game1_select_screen.choices = ['f', 'j'];
-      game1_select_screen.invalid_choices = ['space'];
-    } else if (game1_color_front === 'blue') {
-      game1_select_screen.choices = ['f'];
-      game1_select_screen.invalid_choices = ['j', 'space'];
-    } else {
-      game1_select_screen.choices = ['j'];
-      game1_select_screen.invalid_choices = ['f', 'space'];
-    }
 
   },
   on_finish: function(data){
 
-    // register the number of premature/invalid responses
-    premature_game1_choice = data.invalid_count;
-
-    // record premature responses if they occur
-    if(premature_game1_choice > 0){
-      data.record_premature = 'yes';
-      data.phase = 'game1_choice';
-    }
-
     // register the valid key response and its RT
     game1_respKey = jsPsych.pluginAPI.convertKeyCodeToKeyCharacter(data.key_press);
-    game1_respRT = data.rt;
+    game1_respRT = Math.round(data.rt);
+
+    if (game1_respKey === "f") {
+      game1_guessed_color = "yellow";
+    } else {
+      game1_guessed_color = "blue";
+    }
 
     // each option has a state (css class, see the custom.css file in the configurations folder)
     // of either 'selected' or 'unselected'. When 'selected', the option will be surrounded by
-    // a green frame to indicate to participants which option (blue or yellow) they have chosen.
+    // a blank frame to indicate to participants which option (blue or yellow) they have chosen.
     // Here based on which key participants have pressed, we change the corresponding option to 'selected'.
     game1_option_states[game1_respKey] = 'selected';
 
-    // determine the color of the back side of the card
-    // when the current trial is a non-gamble trial, the back side color matches the front size
-    if (game1_outcome === 'neutral'){
-      if (game1_color_front === 'blue') {
-        game1_color_back = 'blue';
-      } else {
-        game1_color_back = 'yellow';
-      }
-    } else if (game1_outcome === 'win'){
-      // when the current trial is a win, show blue if participant choose F
-      // and show yellow if participants choose J, so that their guess is correct
-      if (game1_respKey === 'f'){
-        game1_color_back = 'blue';
-      } else {
-        game1_color_back = 'yellow';
-      }
-    } else {
-      // when the current trial is a loss, show yellow if participant choose F
-      // and show blue if participants choose J, so that their guess is incorrect
-      if (game1_respKey === 'f'){
-        game1_color_back = 'yellow';
-      } else {
-        game1_color_back = 'blue';
-      }
-    }
   }
 }
 
 /******* Outcome of game 1 *******/
 
-function turnColor() {
-
-  // 50 milliseconds after participants make a choice,
-  // turn the color card; the animation lasts 500 ms.
-  setTimeout(function(){
-    document.getElementById("color_card").classList.add("is-flipped");
-    // play audio
-    document.getElementById("flip_audio").play();
-  }, 50);
-
-  // after the card is flipped, show the outcome in text
-  setTimeout(function(){
-
-    document.getElementById("game1_outcome").textContent = game1_outcome_message;
-
-  }, 550);
+// function to generate a random integer within a certain range
+function randomIntFromInterval(min, max) { // min and max included
+  return Math.floor(Math.random() * (max - min + 1) + min)
 }
 
-// flip the card and show the outcome of game 1
+// functions to show outcomes
+function show_game1_outcome() {
+
+  // based on the outcome, determine how to spin the wheel
+  var wheel = document.getElementById("game1-wheel");
+
+  // for a neutral outcome, spin the wheel and the outcome will always be the same
+  if (game1_outcome === 'neutral') {
+    var spin_degrees = randomIntFromInterval(39, 70) + 72 * randomIntFromInterval(10, 15);
+  } else if (game1_outcome === "win") {
+    // for a win, we need to spin the wheel so that it lands on the guessed color
+    if (game1_guessed_color === "yellow") {
+      var spin_degrees = randomIntFromInterval(39, 70) + 72 * randomIntFromInterval(10, 15);
+    } else{
+      var spin_degrees = randomIntFromInterval(3, 34) + 72 * randomIntFromInterval(10, 15);
+    }
+
+  } else {
+    // for a loss, we need to spin the wheel so that it does NOT land on the guessed color
+    if (game1_guessed_color === "yellow") {
+      var spin_degrees = randomIntFromInterval(3, 34) + 72 * randomIntFromInterval(10, 15);
+    } else{
+      var spin_degrees = randomIntFromInterval(39, 70) + 72 * randomIntFromInterval(10, 15);
+    }
+  }
+
+  wheel.style.transform = "rotate(" + spin_degrees + "deg)";
+
+  // function to show the outcome in text, and play corresponding sound
+  function show_outcome() {
+    if (game1_outcome === "win") {
+      document.getElementById("game1-outcome").innerHTML = '<p style="color:green;">+40</p>';
+      document.getElementById("win-sound").play();
+    } else if (game1_outcome === "loss") {
+      document.getElementById("game1-outcome").innerHTML = '<p style="color:red;">-40</p>';
+      document.getElementById("loss-sound").play();
+    } else {
+      document.getElementById("game1-outcome").innerHTML = '<p>0</p>';
+    }
+  }
+
+  // show outcome text and play audio after 1500 milliseconds
+  var myVar = setTimeout(show_outcome, 1500);
+
+}
+
+// turn the wheel and show the outcome of game 1
 function game1_outcome_screen_html(){
 
   var game_html =
-    '<div class = "game-container">' +
-    '<img src onerror="turnColor();">' +
-    '<div id="game1_instruction">' + game1_text_instruction+'</div>' +
-    '<div class = "F_button ' + game1_option_states['f'] + '"><img src="images/blue_F.png"></div>' +
-    '<div class = "J_button ' + game1_option_states['j']+'"><img src="images/yellow_J.png"></div>' +
-    '<div class="flip-color">' +
-    '<div id = "color_card" class="flip-color-inner">' +
-    '<div class="flip-color-front"><img src="images/' + game1_color_front+'.png"></div>' +
-    '<div class="flip-color-back"><img src="images/' + game1_color_back +'.png"></div>' +
+    '<div id = "game-interface">' +
+    '<div id = "game1-arrow"><p>&#x2193</p></div>' +
+    '<div id = "game1-wheel">';
+
+  if (game1_color === "yellow") {
+    game_html = game_html +
+      '<div class = "pie-chart" style="background: conic-gradient(#FFFF00 0% 100%);"></div>';
+  } else if (game1_color === "blue") {
+    game_html = game_html +
+      '<div class = "pie-chart" style="background: conic-gradient(#00FFFF 0% 100%);"></div>';
+  } else{
+    game_html = game_html +
+      '<div class = "pie-chart" style="background: conic-gradient(#FFFF00 0% 10%, #00FFFF 10% 20%, #FFFF00 20% 30%, #00FFFF 30% 40%, #FFFF00 40% 50%, #00FFFF 50% 60%, #FFFF00 60% 70%, #00FFFF 70% 80%, #FFFF00 80% 90%, #00FFFF 90% 100%);"></div>';
+  }
+
+  // add the outlines of the wheel
+  game_html = game_html +
+  '<div class = "radius deg_0"></div>' +
+  '<div class = "radius deg_10"></div>' +
+  '<div class = "radius deg_20"></div>' +
+  '<div class = "radius deg_30"></div>' +
+  '<div class = "radius deg_40"></div>' +
+  '<div class = "radius deg_50"></div>' +
+  '<div class = "radius deg_60"></div>' +
+  '<div class = "radius deg_70"></div>' +
+  '<div class = "radius deg_80"></div>' +
+  '<div class = "radius deg_90"></div>';
+
+  // add the two choice buttons
+  game_html = game_html +
     '</div>' +
-    '</div>' +
-    '<audio id="flip_audio" src="card_flip.mp3"></audio>' +
-    '<div id = "game1_outcome"></div>' +
-    '</div>' +
-    '</div>' ;
+    '<div id = "game1-left-button" class = "' + game1_option_states['f'] + '"><p>F</p></div>' +
+    '<div id = "game1-right-button" class = "' + game1_option_states['j'] +'"><p>J</p></div>';
+
+ // add the outcome text
+ game_html = game_html + '<div id = "game1-outcome"></div>';
+
+
+  // add audio files
+  game_html = game_html +
+    '<img src onerror="show_game1_outcome();">' +
+    '<audio id="loss-sound" src="buzz.wav"></audio>' +
+    '<audio id="win-sound" src="cash.wav"></audio>'
+    '</div>';
 
   return game_html;
+
 };
 
 
@@ -649,28 +684,97 @@ function game1_outcome_screen_html(){
 // from the moment participants make a choice till the moment game 1 disappears
 // the outcome message of game 1 itself is presented for 1000 milliseconds
 var game1_outcome_screen = {
-  type: 'html-keyboard-response-custom', // custom plugin
+  type: 'html-keyboard-response-custom',
   stimulus: 'placeholder',
   on_start: function(game1_outcome_screen){
     game1_outcome_screen.stimulus = game1_outcome_screen_html();
   },
   choices: jsPsych.NO_KEYS,
   invalid_choices: ['f', 'j', 'space'],
-  trial_duration: 1550,
+  trial_duration: 2500,
   response_ends_trial: false,
   on_finish: function(data){
-    // register the number of premature/invalid responses
-    premature_game1_outcome = data.invalid_count;
 
-    // record premature responses if they occur
-    if(premature_game1_outcome > 0){
-      data.record_premature = 'yes';
-      data.phase = 'game1_outcome';
+    // trigger data registration
+    if (exp_part === 'practice_game1' ) {
+
+      // during the practice block for game 1,
+      // game 2 is not shown; therefore all game2-related parameters are not applicable
+      delay = 'na';
+      game2_delay_premature = 0;
+      game2_startRT = 0;
+      game2_HP_prob = 0;
+      game2_HP_amount = 0;
+      game2_LP_prob = 0;
+      game2_LP_amount = 0;
+      game2_pos = 'na';
+      game2_respKey = 'na';
+      game2_respRT = 0;
+      game2_choice = 'na';
+      game2_outcome = 'na';
+
+      data.task = 'guessing';
+    }
+
+    // add the outcome of game 1 from experimental blocks to an array
+    if (exp_part === 'exp' ) {
+      if (game1_outcome === 'win') {
+        game1_all_outcomes.push({'block_number': block_number, 'trial_number': trial_number, 'outcome':40});
+      } else{
+        game1_all_outcomes.push({'block_number': block_number, 'trial_number': trial_number, 'outcome':-40});
+      }
     }
   }
 }
 
+
+/********************************************************
+Delay between game 1 and game 2
+********************************************************/
+var delay_screen = {
+  type: 'html-keyboard-response-custom',
+  stimulus: ' ',
+  choices: jsPsych.NO_KEYS,
+  invalid_choices: ['f', 'j', 'space'],
+  on_start: function(delay_screen){
+    if (delay === "yes") {
+      // when there is a pause, show a message for 3000 milliseconds
+      delay_screen.stimulus = '<p style = "font-size: 30px">Loading the game...</p>';
+      delay_screen.trial_duration = 3000;
+    } else{
+      // skip this when there is no pause
+      delay_screen.trial_duration = 0;
+    }
+  },
+  on_finish: function(data){
+
+    // register the number of premature/invalid responses
+    game2_delay_premature = data.invalid_count;
+
+    // record premature responses if they occur
+    if(data.invalid_count > 0){
+      data.record_premature = 'yes';
+      data.phase = 'delay';
+    }
+
+  }
+};
+
+
+/********************************************************
+Events that make up a trial in game 2
+********************************************************/
+
 /******* start game 2 *******/
+function game2_start_screen_html(){
+
+  var game_html =
+    '<div id = "game-interface">' +
+    '<div id = "start-message"><p>Game ' + trial_number +' of ' + N_trial+ '<br><br>Press the space bar to start a <b>choice</b> game.</p></div>' +
+    '</div>';
+
+  return game_html;
+};
 
 var game2_start_screen = {
   type: 'html-keyboard-response-custom',
@@ -679,58 +783,17 @@ var game2_start_screen = {
   invalid_choices: ['f', 'j'],
   on_start: function(game2_start_screen){
 
-    // show the number of games left
-    var games_left = (ntrials - trial_number) * 2 + 1;
+    // compute the current trial number
+    trial_number = trial_number + 1;
 
-    game2_start_screen.stimulus = '<p style = "font-size: 30px">Press space to start a <b>choice</b> game.</p>' +
-                                  '<p style = "font-size: 25px">' + games_left + ' games left.</p>';
+    game2_start_screen.stimulus = game2_start_screen_html();
 
   },
   on_finish: function(data){
-
-    // register the number of premature/invalid responses
-    premature_game2_start = data.invalid_count;
-
-    // record premature responses if they occur
-    if(premature_game2_start > 0){
-      data.record_premature = 'yes';
-      data.phase = 'game2_start';
-    }
 
     // register how quickly participants start, with the space bar
-    game2_startRT = data.rt;
+    game2_startRT = Math.round(data.rt);
 
-  }
-};
-
-/******* insert a delay *******/
-
-var delay_screen = {
-  type: 'html-keyboard-response-custom',
-  stimulus: ' ',
-  choices: jsPsych.NO_KEYS,
-  invalid_choices: ['f', 'j', 'space'],
-  on_start: function(delay_screen){
-    if (delay === "yes") {
-      // when there is a pause, show 'Please wait...' for 5000 milliseconds
-      delay_screen.stimulus = '<p style = "font-size: 30px">Please wait...</p>';
-      delay_screen.trial_duration = 5000;
-    } else{
-      // flash an empty screen for 50 ms when there is no pause
-      delay_screen.stimulus = " ";
-      delay_screen.trial_duration = 50;
-    }
-  },
-  on_finish: function(data){
-
-    // register the number of premature/invalid responses
-    premature_game2_delay = data.invalid_count;
-
-    // record premature responses if they occur
-    if(premature_game2_delay > 0){
-      data.record_premature = 'yes';
-      data.phase = 'game2_delay';
-    }
   }
 };
 
@@ -739,25 +802,41 @@ var delay_screen = {
 function game2_select_screen_html(){
 
   var game_html =
-    '<div class="game-container">' +
-    '<img src onerror="">' +
-    '<div id="pie-container-left" class="unselected">' +
-    '<div id = "pie_left" class="flip-color-inner">' +
-    '<div class="flip-color-front pie-chart" style="background: conic-gradient(green 0% ' + game2_probs[0]+'%, red '+ game2_probs[0] +'% 100%);"></div>' +
-    '<div class="flip-color-back pie-chart-red"></div>' +
+    '<div id = "game-interface">' +
+    '<div id = "game2-option-left" class = "unselected">' +
+    '<div class = "game2-text"><p>' + game2_left_amount + '</p></div>' +
+    '<div id = "game2-wheel-left">' +
+    '<div class = "pie-chart" style="background: conic-gradient(#2ECC71 0% ' + game2_left_prob*100 + '%, #D7DBDD '+ game2_left_prob*100 +'% 100%);"></div>' +
+    '<div class = "radius deg_0"></div>' +
+    '<div class = "radius deg_10"></div>' +
+    '<div class = "radius deg_20"></div>' +
+    '<div class = "radius deg_30"></div>' +
+    '<div class = "radius deg_40"></div>' +
+    '<div class = "radius deg_50"></div>' +
+    '<div class = "radius deg_60"></div>' +
+    '<div class = "radius deg_70"></div>' +
+    '<div class = "radius deg_80"></div>' +
+    '<div class = "radius deg_90"></div>' +
     '</div>' +
+    '<div class = "game2-text"><p>F</p></div>' +
     '</div>' +
-    '<div id="pie-container-right" class="unselected">' +
-    '<div id = "pie_right" class="flip-color-inner">' +
-    '<div class="flip-color-front pie-chart" style="background: conic-gradient(green 0% ' + game2_probs[1]+'%, red '+ game2_probs[1] +'% 100%);"></div>' +
-    '<div class="flip-color-back pie-chart-green"></div>' +
+    '<div id = "game2-option-right" class = "unselected">' +
+    '<div class = "game2-text"><p>' + game2_right_amount + '</p></div>' +
+    '<div id = "game2-wheel-right">' +
+    '<div class = "pie-chart" style="background: conic-gradient(#2ECC71 0% '+ game2_right_prob*100 + '%, #D7DBDD '+ game2_right_prob*100 + '% 100%);"></div>' +
+    '<div class = "radius deg_0"></div>' +
+    '<div class = "radius deg_10"></div>' +
+    '<div class = "radius deg_20"></div>' +
+    '<div class = "radius deg_30"></div>' +
+    '<div class = "radius deg_40"></div>' +
+    '<div class = "radius deg_50"></div>' +
+    '<div class = "radius deg_60"></div>' +
+    '<div class = "radius deg_70"></div>' +
+    '<div class = "radius deg_80"></div>' +
+    '<div class = "radius deg_90"></div>' +
     '</div>' +
+    '<div class = "game2-text"><p>J</p></div>' +
     '</div>' +
-    '<div id="pie-text-left">' + game2_amounts[0] + '</div>' +
-    '<div id="pie-text-right">' + game2_amounts[1] + '</div>' +
-    '<div id = "game2_outcome_left"></div>' +
-    '<div id = "game2_outcome_right"></div>' +
-    '<audio id="flip_audio" src="card_flip.mp3"></audio>' +
     '</div>';
 
   return game_html;
@@ -769,271 +848,318 @@ var game2_select_screen = {
   choices: ['f', 'j'],
   invalid_choices: ['space'],
   on_start: function(game2_select_screen){
+
+    // based on the parameters of a trial,
+    // determine the appearance of the two options in game 2
+    if (game2_pos === "HP-LP") {
+      game2_left_prob = game2_HP_prob;
+      game2_left_amount = game2_HP_amount;
+      game2_right_prob = game2_LP_prob;
+      game2_right_amount = game2_LP_amount;
+    } else {
+      game2_left_prob = game2_LP_prob;
+      game2_left_amount = game2_LP_amount;
+      game2_right_prob = game2_HP_prob;
+      game2_right_amount = game2_HP_amount;
+    }
+
     game2_select_screen.stimulus = game2_select_screen_html();
   },
   on_finish: function(data){
 
-    // register the number of premature/invalid responses
-    premature_game2_choice = data.invalid_count;
-
-    // record premature responses if they occur
-    if(premature_game2_choice > 0){
-      data.record_premature = 'yes';
-      data.phase = 'game2_choice';
-    }
-
     // register the key and the RT of the valid response
     game2_respKey = jsPsych.pluginAPI.convertKeyCodeToKeyCharacter(data.key_press);
-    game2_respRT = data.rt;
+    game2_respRT = Math.round(data.rt);
 
-    // each option has a state (css class, see the custom.css file in the configurations folder)
-    // of either 'selected' or 'unselected'. When 'selected', the option will be surrounded by
-    // a green frame to indicate to participants which option they have chosen.
-    // Here based on which key participants have pressed, we change the corresponding option to 'selected'.
+    // add a frame to the selected option as choice confirmation
     game2_option_states[game2_respKey] = 'selected';
 
-    // determine the choice based on the key pressed
-    if (game2_pos === 'g-left-ng-right') {
-      if (game2_respKey === 'j') {
-        game2_gambled = 'no';
-      }else {
-        game2_gambled = 'yes';
-      }
-    }else{
-      if (game2_respKey === 'j') {
-        game2_gambled = 'yes';
-      }else {
-        game2_gambled = 'no';
-      }
-    }
-
-    // based on participant's choice, determine the outcome
-    if (game2_gambled === 'no') {
-
-      game2_outcome = 'neutral';
-
-      game2_outcome_amount = game2_NG_amount;
-      game2_outcome_message = '+ ' + game2_outcome_amount;
-
-      pie_back_color = 'green';
-
-
+    // based on the response key, get which option is chosen
+    if (game2_respKey === "f") {
+      game2_chosen_prob = game2_left_prob;
+      game2_chosen_amount = game2_left_amount;
     } else{
-      // in case of a gamble, generate a random number to determine the outcome
-      if (Math.random() <= game2_win_prob) {
-
-        game2_outcome = 'win';
-
-        game2_outcome_amount = game2_G_amount;
-        game2_outcome_message = '+ ' + game2_outcome_amount;
-
-        pie_back_color = 'green';
-
-
-      }else{
-        game2_outcome = 'loss';
-
-        game2_outcome_amount = 0
-        game2_outcome_message = '0';
-
-        pie_back_color = 'red';
-      }
+      game2_chosen_prob = game2_right_prob;
+      game2_chosen_amount = game2_right_amount;
     }
 
-    // add the outcome of the current choice game
-    var game_number = trial_number * 2;
-    choice_game_outcomes.push({game_number: game_number, amount: game2_outcome_amount});
-
+    // determine whether the chosen option is the HP or the LP one
+    if (game2_chosen_prob === game2_HP_prob) {
+      game2_choice = "HP";
+    } else{
+      game2_choice = "LP";
+    }
   }
 }
 
 /******* Outcome of game 2 *******/
 
-// flip the cards and show the outcome of game 2
+// functions to show outcomes
+function show_game2_outcome() {
 
-function turnPie() {
+  function spin_wheel(){
+    // based on the outcome, determine how to spin the wheel
+    var wheel = document.getElementById("game1-wheel");
 
-  // 50 milliseconds after participants make a choice;
-  // start turning the right pie chart.
-  // the animation of turning the pie chart lasts 500 ms.
-  setTimeout(function(){
-    if (game2_respKey === "f") {
-      document.getElementById("pie_left").classList.add("is-flipped");
+    // randomly determine the spin degree, and hence the outcome of game 2
+    var rand_digit = randomIntFromInterval(1, 100);
+
+    if (rand_digit <= game2_chosen_prob * 100) {
+      game2_outcome = "win";
     } else{
-      document.getElementById("pie_right").classList.add("is-flipped");
+      game2_outcome = "no-win";
     }
+    spin_degrees = 360 * (100 - rand_digit)/100 + 360 * randomIntFromInterval(2, 3);
 
-    // play audio
-    document.getElementById("flip_audio").play();
-  }, 50);
+    wheel.style.transform = "rotate(" + spin_degrees + "deg)";
+  }
 
-  // after the pie chart is flipped, show the outcome in text
-  setTimeout(function(){
 
-    if (game2_respKey === "f") {
-      document.getElementById("game2_outcome_left").textContent = game2_outcome_message;
-    } else{
-      document.getElementById("game2_outcome_right").textContent = game2_outcome_message;
+  // function to show the outcome in text, and play corresponding sound
+  function show_outcome() {
+    if (game2_outcome === "win") {
+      document.getElementById("game1-outcome").innerHTML = '<p style="color:green;">+' + game2_chosen_amount + '</p>';
+      document.getElementById("win-sound").play();
+    } else {
+      document.getElementById("game1-outcome").innerHTML = '<p>0</p>';
     }
+  }
 
-  }, 550);
+  // spin the wheel 500 ms after oneset
+  var myVar1 = setTimeout(spin_wheel, 500);
+
+  // show outcome text and play audio after another 1500 milliseconds
+  var myVar2 = setTimeout(show_outcome, 2000);
+
 }
 
+// turn the wheel and show the outcome of game 1
 function game2_outcome_screen_html(){
 
   var game_html =
-    '<div class="game-container">' +
-    '<img src onerror="turnPie();">' +
-    '<div id="pie-container-left" class="' + game2_option_states['f']+'">' +
-    '<div id = "pie_left" class="flip-color-inner">' +
-    '<div class="flip-color-front pie-chart" style="background: conic-gradient(green 0% ' + game2_probs[0]+'%, red '+ game2_probs[0] +'% 100%);"></div>' +
-    '<div class="flip-color-back pie-chart-' + pie_back_color + '"></div>' +
-    '</div>' +
-    '</div>' +
-    '<div id="pie-container-right" class="' + game2_option_states['j']+ '">' +
-    '<div id = "pie_right" class="flip-color-inner">' +
-    '<div class="flip-color-front pie-chart" style="background: conic-gradient(green 0% ' + game2_probs[1]+'%, red '+ game2_probs[1] +'% 100%);"></div>' +
-    '<div class="flip-color-back pie-chart-' + pie_back_color + '"></div>' +
-    '</div>' +
-    '</div>' +
-    '<div id="pie-text-left">' + game2_amounts[0] + '</div>' +
-    '<div id="pie-text-right">' + game2_amounts[1] + '</div>' +
-    '<div id = "game2_outcome_left"></div>' +
-    '<div id = "game2_outcome_right"></div>' +
-    '<audio id="flip_audio" src="card_flip.mp3"></audio>' +
+    '<div id = "game-interface">' +
+    '<div id = "game1-arrow"><p>&#x2193</p></div>' +
+    '<div id = "game1-wheel">'+
+    '<div class = "pie-chart" style="background: conic-gradient(#2ECC71 0% ' + game2_chosen_prob*100 +'%, #D7DBDD ' + game2_chosen_prob*100 +'% 100%);"></div>';
+
+  // add the outlines of the wheel
+  game_html = game_html +
+  '<div class = "radius deg_0"></div>' +
+  '<div class = "radius deg_10"></div>' +
+  '<div class = "radius deg_20"></div>' +
+  '<div class = "radius deg_30"></div>' +
+  '<div class = "radius deg_40"></div>' +
+  '<div class = "radius deg_50"></div>' +
+  '<div class = "radius deg_60"></div>' +
+  '<div class = "radius deg_70"></div>' +
+  '<div class = "radius deg_80"></div>' +
+  '<div class = "radius deg_90"></div>' +
+  '</div>';
+
+  // add the outcome message
+  game_html = game_html + '<div id = "game1-outcome"></div>';
+
+  // add audio files
+  game_html = game_html +
+    '<img src onerror="show_game2_outcome();">' +
+    '<audio id="win-sound" src="cash.wav"></audio>'
     '</div>';
 
   return game_html;
+
 };
 
-// the outcome phase of game 2 lasts in total 1550 milliseconds
-// from the moment participants select a pie till the moment game 2 disappears
-// the outcome message of game 2 itself is presented for 1000 milliseconds
 var game2_outcome_screen = {
-  type: 'html-keyboard-response-custom',
+  type: 'html-keyboard-response-custom', // custom plugin
   stimulus: 'placeholder',
   on_start: function(game2_outcome_screen){
     game2_outcome_screen.stimulus = game2_outcome_screen_html();
   },
   choices: jsPsych.NO_KEYS,
   invalid_choices: ['f', 'j', 'space'],
-  trial_duration: 1550,
+  trial_duration: 3000,
   response_ends_trial: false,
   on_finish: function(data){
 
-    // register the number of premature/invalid responses
-    premature_game2_outcome = data.invalid_count;
+    // trigger data registration for the practice block for game 2
+    if (exp_part === 'practice_game2' ) {
 
-    // record premature responses if they occur
-    if(premature_game2_outcome > 0){
-      data.record_premature = 'yes';
-      data.phase = 'game2_outcome';
+      // during the practice block for game 2, game 1 is not shown.
+      // all game1-related parameters are therefore not applicable.
+
+      delay = 'na';
+      game1_startRT = 0;
+      game1_color = 'na';
+      game1_respKey = 'na';
+      game1_respRT = 0;
+      game1_outcome = 'na';
+      game2_delay_premature = 0;
+
+      data.task = 'guessing';
     }
 
-    // register all data from one trial (two games)
-    data.task = task;
-    data.trial_number = trial_number;
-    data.trial_condition = trial_condition;
-    data.game1_outcome = game1_outcome;
-    data.delay = delay;
+    // trigger data registration for the experimental blocks
+    if (exp_part === 'exp' ) {
+      data.task = 'guessing';
 
-    data.game1_color_front = game1_color_front;
-    data.game1_color_back = game1_color_back;
+    }
 
-    data.game1_startRT = game1_startRT;
-    data.game1_respKey = game1_respKey;
-    data.game1_respRT = game1_respRT;
-
-    data.premature_game1_start = premature_game1_start;
-    data.premature_game1_choice = premature_game1_choice;
-    data.premature_game1_outcome = premature_game1_outcome;
-
-    data.game2_G_amount = game2_G_amount;
-    data.game2_G_prob = game2_win_prob;
-    data.game2_NG_amount = game2_NG_amount;
-    data.game2_pos = game2_pos;
-
-    data.game2_startRT = game2_startRT;
-    data.game2_respKey = game2_respKey;
-    data.game2_respRT = game2_respRT;
-    data.game2_gambled = game2_gambled;
-
-    data.game2_outcome = game2_outcome;
-    data.game2_outcome_amount = game2_outcome_amount;
-
-    data.premature_game2_start = premature_game2_start;
-    data.premature_game2_delay = premature_game2_delay;
-    data.premature_game2_choice = premature_game2_choice;
-    data.premature_game2_outcome = premature_game2_outcome;
-
+    // add the outcome of game 2 from experimental blocks to an array
+    if (exp_part === 'exp' ) {
+      if (game2_outcome === 'win') {
+        game2_all_outcomes.push({'block_number': block_number, 'trial_number': trial_number, 'outcome':game2_chosen_amount});
+      } else{
+        game2_all_outcomes.push({'block_number': block_number, 'trial_number': trial_number, 'outcome':0});
+      }
+    }
   }
 }
 
-var guessing_game = {
-  timeline: [blank_screen, game1_start_screen, blank_screen, game1_select_screen, game1_outcome_screen,
-  game2_start_screen, delay_screen, game2_select_screen, game2_outcome_screen],
-  timeline_variables: trials,
+/********************************************************
+Practice for game 1
+********************************************************/
+// create the practice trials for game 1
+var factors = {
+  trial_type: ['practice'],
+  game1_outcome:factor_game1_outcome,
+  delay: factor_delay,
+  game2_pos: ['placeholder'],
+  // a place holder - game 2 won't be displayed
+  game2_trial: [{game2_HP_prob: 1.0, game2_HP_amount: 15, game2_LP_prob: 0.3, game2_LP_amount: 50}]
+}
+
+var practice_game1 = jsPsych.randomization.factorial(factors, 1);
+
+var event_sequence_practice_game1 = [get_parameters, game1_start_screen, game1_select_screen, game1_outcome_screen]
+
+var task_practice_game1 = {
+  timeline: event_sequence_practice_game1,
+  timeline_variables: practice_game1,
   randomize_order: false,
   repetitions: 1
 };
 
+
 /********************************************************
-   Randomly select 10 guessing games and 10 choice games
+Practice for game 2
 ********************************************************/
-var email_screen = {
-  type: 'survey-text',
-  questions: [{prompt: 'placeholder'}],
-  on_start: function(email_screen){
-    // randomly pick 10 guessing games and 10 choice games.
-    guessing_game_outcomes = jsPsych.randomization.shuffle(guessing_game_outcomes);
-    guessing_game_outcomes = guessing_game_outcomes.slice(0, 10);
+// create the practice trials for game 2
+var factors = {
+  trial_type: ['practice'],
+  // place holders - game 1 won't be shown
+  game1_outcome:['win'],
+  delay: ['no'],
+  game2_pos: ['HP-LP'],
+  game2_trial:
+  [{game2_HP_prob: 0.6, game2_HP_amount: 10, game2_LP_prob: 0.4, game2_LP_amount: 40},
+   {game2_HP_prob: 0.7, game2_HP_amount: 10, game2_LP_prob: 0.3, game2_LP_amount: 50},
+   {game2_HP_prob: 0.8, game2_HP_amount: 10, game2_LP_prob: 0.2, game2_LP_amount: 20},
+   {game2_HP_prob: 0.8, game2_HP_amount: 20, game2_LP_prob: 0.2, game2_LP_amount: 30}
+  ]
 
-    choice_game_outcomes = jsPsych.randomization.shuffle(choice_game_outcomes);
-    choice_game_outcomes = choice_game_outcomes.slice(0, 10);
+}
 
-    // create text string based on the selected games and count the total amount of points
-    var selected_games = 'The program has randomly picked the following 10 guessing games: <br><br>';
+var practice_game2 = jsPsych.randomization.factorial(factors, 1);
 
-    for (var i = 0; i < guessing_game_outcomes.length; i++) {
-      var selected_tmp = guessing_game_outcomes[i];
+var event_sequence_practice_game2 = [get_parameters, game2_start_screen, game2_select_screen, game2_outcome_screen]
 
-      selected_games = selected_games + 'On game ' + selected_tmp.game_number + ', you get ' + selected_tmp.amount + ' points. <br>';
-      total_points = total_points + selected_tmp.amount;
-    }
+var task_practice_game2 = {
+  timeline: event_sequence_practice_game2,
+  timeline_variables: practice_game2,
+  randomize_order: false,
+  repetitions: 1
+};
 
-    selected_games = selected_games + '<br>The program has randomly picked the following 10 choice games: <br><br>';
 
-    for (var i = 0; i < choice_game_outcomes.length; i++) {
-      var selected_tmp = choice_game_outcomes[i];
+/********************************************************
+Define all 6 blocks for the experimental part
+********************************************************/
 
-      selected_games = selected_games + 'On game ' + selected_tmp.game_number + ', you get ' + selected_tmp.amount + ' points. <br>';
-      total_points = total_points + selected_tmp.amount;
-    }
+function block_start_screen_html(){
 
-    selected_games = selected_games + '<br> In total, you get <b>' + total_points + '</b> points from the games.' +
-                    '<br>The one with the most points will win 10 euro via bank transfer.' +
-                    '<br>Enter your email address below if you want to enter the competition.';
+  var game_html =
+    '<div id = "game-interface">' +
+    '<div id = "start-message"><p>Press space to start block ' + block_number + ' of ' + N_block +'.</p></div>' +
+    '</div>';
 
-    email_screen.questions = [{prompt: selected_games, required: false, name: 'email'}];
+  return game_html;
+};
 
-  },
-  on_finish: function(data) {
-    // get the email address of participants
-    var responses = JSON.parse(data.responses);
-    var email = responses.email;
+var block_start_screen = {
+  type: 'html-keyboard-response-custom',
+  stimulus: 'placeholder',
+  choices: ['space'],
+  invalid_choices: ['f', 'j'],
+  on_start: function(block_start_screen){
 
-    console.log(email);
-    // register data
-    data.task = 'email';
-    data.email = email;
-    data.total_points = total_points;
+    // increment block number
+    block_number = block_number + 1;
 
-    // we register email during data collection to contact the winner
-    // to give them the extra bonus. These files will be immediately deleted
-    // after finishing data collection.
+    // get the total number of trials in an experimental block
+    N_trial = block1.length * 2;
+
+    // reset trial number and number of points
+    trial_number = 0;
+
+    block_start_screen.stimulus = block_start_screen_html();
+
   }
 };
 
+
+function block_end_screen_html(){
+
+  var game_html =
+    '<div id = "game-interface">' +
+    '<div id = "start-message"><p>You have finished Block ' + block_number + '.<br>Take a break, or press space to continue.</p></div>' +
+    '</div>';
+
+  return game_html;
+};
+
+var block_end_screen = {
+  type: 'html-keyboard-response-custom',
+  stimulus: 'placeholder',
+  choices: ['space'],
+  invalid_choices: ['f', 'j'],
+  on_start: function(block_end_screen){
+
+    block_end_screen.stimulus = block_end_screen_html();
+
+  }
+};
+
+// define all 4 blocks
+var event_sequence = [get_parameters, game1_start_screen, game1_select_screen, game1_outcome_screen,
+                      delay_screen, game2_start_screen, game2_select_screen, game2_outcome_screen]
+
+var task_exp_block1 = {
+  timeline: event_sequence,
+  timeline_variables: block1,
+  randomize_order: false,
+  repetitions: 1
+};
+
+var task_exp_block2 = {
+  timeline: event_sequence,
+  timeline_variables: block2,
+  randomize_order: false,
+  repetitions: 1
+};
+
+var task_exp_block3 = {
+  timeline: event_sequence,
+  timeline_variables: block3,
+  randomize_order: false,
+  repetitions: 1
+};
+
+var task_exp_block4 = {
+  timeline: event_sequence,
+  timeline_variables: block4,
+  randomize_order: false,
+  repetitions: 1
+};
 
 /********************************************************
 Add all events to the timeline variable
@@ -1041,16 +1167,32 @@ Add all events to the timeline variable
 
 timeline.push(...consent_demo);
 
-timeline.push(guessing_instruction);
-timeline.push(guessing_game);
+// practice for game 1
+timeline.push(instruction_game1_practice);
+timeline.push(task_practice_game1);
 
-timeline.push(PGSI_instruction);
-timeline.push(...PGSI_items);
+// practice for game 2
+timeline.push(instruction_game2_practice);
+timeline.push(task_practice_game2);
 
-timeline.push(UPPSP_instruction);
-timeline.push(...UPPSP_items);
+timeline.push(instruction_exp);
 
-timeline.push(email_screen);
+timeline.push(block_start_screen);
+timeline.push(task_exp_block1);
+timeline.push(block_end_screen);
+
+timeline.push(block_start_screen);
+timeline.push(task_exp_block2);
+timeline.push(block_end_screen);
+
+timeline.push(block_start_screen);
+timeline.push(task_exp_block3);
+timeline.push(block_end_screen);
+
+timeline.push(block_start_screen);
+timeline.push(task_exp_block4);
+
+timeline.push(bonus);
 timeline.push(debrief);
 
 /********************************************************
@@ -1093,7 +1235,7 @@ var save_keys_data = function(extra_info, responses){
 
       var press_count = i+1;
       var key = jsPsych.pluginAPI.convertKeyCodeToKeyCharacter(responses[i].key_press);
-      var rt = responses[i].rt;
+      var rt = Math.round(responses[i].rt);
 
       data_string += (press_count + ',' + key + ',' + rt + '\n');
 
@@ -1103,10 +1245,11 @@ var save_keys_data = function(extra_info, responses){
   return data_string;
 }
 
+
 // run the experiment
 jsPsych.init({
   timeline: timeline,
-  preload_images: all_images,
+  preload_images: instruct_images,
   preload_audio: all_audios,
   exclusions: {
     min_width: 800,
@@ -1114,78 +1257,44 @@ jsPsych.init({
   },
   on_data_update: function(data){
   if (online){
-    var subjID = jsPsych.data.get().last(1).values()[0]['subject_ID']; // get prolific ID
     if (data.trial_index == 3){
       // write header for the main data file
-      var data_row = "subject_ID, age, gender, nationality, task, " +
-                     "trial_number, trial_condition, game1_outcome, delay, game1_color_front, game1_color_back, " +
-                     "game1_startRT, game1_respKey, game1_respRT, " +
-                     "premature_game1_start, premature_game1_choice, premature_game1_outcome, " +
-                     "game2_G_amount, game2_G_prob, game2_NG_amount, game2_pos, " +
-                     "game2_startRT, game2_respKey, game2_respRT, game2_gambled, " +
-                     "game2_outcome, game2_outcome_amount," +
-                     "premature_game2_start, premature_game2_delay, premature_game2_choice, premature_game2_outcome, " +
-                     "time_elapsed\n";
+      var data_row = "subject_ID, age, gender, nationality, exp_part, " +
+                     "block_number, trial_number, trial_type, delay, " +
+                     "game1_startRT, game1_color, game1_respKey, game1_respRT, game1_outcome, " +
+                     "game2_delay_premature, game2_startRT, game2_HP_prob, game2_HP_amount, game2_LP_prob, game2_LP_amount," +
+                     "game2_pos, game2_respKey, game2_respRT, game2_choice, game2_outcome\n";
 
-      appendData('PauseForThought_main_'+ subjID +'.csv', data_row);
+      appendData('PauseForThought_main_'+ subject_ID +'.csv', data_row);
+
 
       // write header for the data file containing premature/invalid responses
-      var data_row = "subject_ID, trial_number, phase, response_number, key, rt\n";
-      appendData('PauseForThought_premature_'+ subjID +'.csv', data_row);
+      var data_row = "subject_ID, block_number, trial_number, phase, response_number, key, rt\n";
+      appendData('PauseForThought_premature_'+ subject_ID +'.csv', data_row);
 
-      // write header for the data file containing PGSI data
-      var data_row = "subject_ID, task, question_number, resp, rt\n";
-      appendData('PauseForThought_PGSI_'+ subjID +'.csv', data_row);
-
-      // write header for the data file containing UPPS-P data
-      var data_row = "subject_ID, task, question_number, reverse, factor, resp, rt\n";
-      appendData('PauseForThought_UPPSP_'+ subjID +'.csv', data_row);
-
-      // write header for the data file containing the amount of points won
-      var data_row = "subject_ID, task, email, total_points\n";
-      appendData('PauseForThought_email_'+ subjID +'.csv', data_row);
+      // write header for the data file containing the extra bonus data
+      var data_row = "subject_ID, total, bonus\n";
+      appendData('PauseForThought_bonus_'+ subject_ID +'.csv', data_row);
 
     }
 
     // append main data from the guessting task
     if (data.task === 'guessing'){
-      var data_row = data.subject_ID + ',' + data.age + ',' + data.gender + ',' + data.nationality + ',' + data.task + ',' +
-                     data.trial_number + ',' + data.trial_condition + ',' + data.game1_outcome + ',' + data.delay + ',' +
-                     data.game1_color_front +  ',' + data.game1_color_back + ',' +
-                     data.game1_startRT + ',' + data.game1_respKey + ',' + data.game1_respRT + ',' +
-                     data.premature_game1_start + ',' + data.premature_game1_choice + ',' + data.premature_game1_outcome + ',' +
-                     data.game2_G_amount + ',' + data.game2_G_prob + ',' + data.game2_NG_amount + ',' + data.game2_pos + ',' +
-                     data.game2_startRT + ',' + data.game2_respKey + ',' + data.game2_respRT + ',' + data.game2_gambled + ',' +
-                     data.game2_outcome + ',' + data.game2_outcome_amount + ',' +
-                     data.premature_game2_start + ',' + data.premature_game2_delay + ',' +data.premature_game2_choice + ',' + data.premature_game2_outcome + ',' +
-                     data.time_elapsed + '\n';
+      var data_row = subject_ID + ',' + age + ',' + gender + ',' + nationality + ',' + exp_part + ',' +
+                     block_number + ',' + trial_number + ',' + trial_type + ',' + delay + ',' +
+                     game1_startRT + ',' + game1_color + ',' + game1_respKey + ',' + game1_respRT + ',' + game1_outcome + ',' +
+                     game2_delay_premature + ',' + game2_startRT + ',' + game2_HP_prob + ',' + game2_HP_amount + ',' +
+                     game2_LP_prob + ',' + game2_LP_amount + ',' + game2_pos + ',' + game2_respKey + ',' +
+                     game2_respRT + ',' + game2_choice + ',' + game2_outcome + '\n';
 
-      appendData('PauseForThought_main_'+ subjID +'.csv', data_row);
+      appendData('PauseForThought_main_'+ subject_ID +'.csv', data_row);
     }
 
     // append data from premature/invalid responses
     if (data.record_premature === 'yes'){
-      var data_row = save_keys_data([data.subject_ID, trial_number, data.phase], data.responses_invalid);
+      var data_row = save_keys_data([subject_ID, block_number, trial_number, data.phase], data.responses_invalid);
 
-      appendData('PauseForThought_premature_'+ subjID +'.csv', data_row);
-    }
-
-    // append PGSI data
-    if (data.task === 'PGSI'){
-      var data_row = data.subject_ID + ',' + data.task + ',' + data.question_number + ',' + data.resp + ',' + data.rt + '\n';
-      appendData('PauseForThought_PGSI_'+ subjID +'.csv', data_row);
-    }
-
-    // append UPPS-P data
-    if (data.task === 'UPPSP'){
-      var data_row = data.subject_ID + ',' + data.task + ',' + data.question_number + ',' + data.reverse + ',' + data.factor + ',' + data.resp + ',' + data.rt + '\n';
-      appendData('PauseForThought_UPPSP_'+ subjID +'.csv', data_row);
-    }
-
-    // append the number of points won
-    if (data.task === 'email'){
-      var data_row = data.subject_ID + ',' + data.task + ',' + data.email + ',' + data.total_points +  '\n';
-      appendData('PauseForThought_email_'+ subjID +'.csv', data_row);
+      appendData('PauseForThought_premature_'+ subject_ID +'.csv', data_row);
     }
 
   }

@@ -1,0 +1,84 @@
+---
+title: "Check test data"
+author: "Zhang Chen"
+date: "03/11/2022"
+format: 
+  html:
+    code-fold: true
+editor: visual
+execute: 
+  warning: false
+  error: false
+toc: true
+toc-depth: 2
+---
+
+## Load libraries and data
+
+```{r}
+library(tidyverse)
+
+df_main <- 
+  read_csv("../../../data/raw/PauseForThought_main_1.csv")
+
+df_premature <- 
+  read_csv("../../../data/raw/PauseForThought_premature_1.csv")
+```
+
+## Check main data
+
+```{r}
+
+# check the number of trials in each block
+df_main %>%
+  count(block_number)
+
+# check the number of experimental and catch trials
+df_main %>%
+  count(block_number, trial_type)
+
+# have a look at the catch trials
+df_catch <- df_main %>%
+  filter(trial_type == "catch")
+
+# the HP option should have a higher prob and a higher amount than the LP
+all(df_catch$game2_HP_prob > df_catch$game2_LP_prob)
+all(df_catch$game2_HP_amount > df_catch$game2_LP_amount)
+
+# the catch trials should be divided into 
+# the game 1 outcome (2) * game 2 pos (2) cells
+df_catch %>%
+  count(game1_outcome, game2_pos)
+
+# have a look at the exp trials
+df_exp <- df_main %>%
+  filter(trial_type == "exp")
+
+# the exp trials should be evenly divided into
+# the game 1 outcome (2) by delay (2) by game 2 pos(2) cells
+df_exp %>%
+  count(game1_outcome, delay, game2_pos)
+
+# check the unique pairs from the Vancouver Gambling task
+df_exp %>%
+  select(game2_HP_prob, game2_HP_amount, game2_LP_prob, game2_LP_amount) %>%
+  unique()
+```
+
+## Check premature data
+
+```{r}
+# compute the amount of premature responses during delay
+df_pre_count <- df_premature %>%
+  filter(phase == "delay") %>%
+  count(block_number, trial_number) %>%
+  mutate(trial_number = trial_number + 1)
+
+# check if it matches the value recorded in the main data
+df_exp <- df_exp %>%
+  full_join(df_pre_count, by = c("block_number", "trial_number")) %>%
+  # turn NA into 0
+  mutate(n = ifelse(is.na(n), 0, n))
+
+all(df_exp$game2_delay_premature == df_exp$n)
+```

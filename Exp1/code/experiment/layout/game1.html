@@ -1,0 +1,60 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>Game layout</title>
+  <link rel="stylesheet" href="../configurations/custom.css">
+
+  <script>
+  function turnColor() {
+
+    // 200 milliseconds after participants make a choice,
+    // turn the color card; the animation lasts 500 ms.
+    setTimeout(function(){
+      document.getElementById("color_card").classList.add("is-flipped");
+      // play audio
+      document.getElementById("flip_audio").play();
+    }, 200);
+
+    // after the card is flipped, show the outcome in text
+    setTimeout(function(){
+
+      document.getElementById("game1_outcome").textContent = "+20";
+
+    }, 700);
+  }
+  </script>
+
+
+</head>
+
+<body>
+
+  <div id = "game-interface">
+    <div id = "game1-arrow"><p>&#x2193</p></div>
+    <div id = "game1-wheel">
+      <div class = "pie-chart" style="background: conic-gradient(#FFFF00 0% 10%, #00FFFF 10% 20%, #FFFF00 20% 30%, #00FFFF 30% 40%, #FFFF00 40% 50%, #00FFFF 50% 60%, #FFFF00 60% 70%, #00FFFF 70% 80%, #FFFF00 80% 90%, #00FFFF 90% 100%);"></div>
+      <div class = "radius deg_0"></div>
+      <div class = "radius deg_10"></div>
+      <div class = "radius deg_20"></div>
+      <div class = "radius deg_30"></div>
+      <div class = "radius deg_40"></div>
+      <div class = "radius deg_50"></div>
+      <div class = "radius deg_60"></div>
+      <div class = "radius deg_70"></div>
+      <div class = "radius deg_80"></div>
+      <div class = "radius deg_90"></div>
+    </div>
+    <div id = "game1-outcome"><p>Win!</p></div>
+    <div id = "game1-left-button" class = "selected"><p>F</p></div>
+    <div id = "game1-right-button" class = "unselected"><p>J</p></div>
+    <div id = "total-message"><p>Total: 0</p></div>
+  </div>
+
+
+
+</body>
+
+</html>

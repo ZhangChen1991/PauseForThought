@@ -1,0 +1,24 @@
+subject_ID, block_number, trial_number, phase, response_number, key, rt
+test1,3,25,delay,1,space,272
+test1,4,29,delay,1,space,182
+test1,4,35,delay,1,space,984
+test1,4,45,delay,1,space,851
+test1,4,47,delay,1,space,1216
+test1,5,5,delay,1,space,297
+test1,5,7,delay,1,space,566
+test1,5,13,delay,1,space,498
+test1,5,23,delay,1,space,463
+test1,5,37,delay,1,space,420
+test1,5,41,delay,1,space,362
+test1,5,45,delay,1,space,275
+test1,6,1,delay,1,space,419
+test1,6,11,delay,1,space,256
+test1,6,19,delay,1,space,2730
+test1,6,25,delay,1,space,357
+test1,6,29,delay,1,space,335
+test1,6,31,delay,1,space,1157
+test1,6,31,delay,2,space,1736
+test1,6,31,delay,3,space,2251
+test1,6,35,delay,1,space,235
+test1,6,39,delay,1,space,451
+test1,6,39,delay,2,space,1313
