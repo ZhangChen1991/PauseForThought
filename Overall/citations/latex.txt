@@ -1,0 +1,3 @@
+We conducted all analyses in R \parencite[version 4.2.1;][]{R-base}.
+
+Furthermore, we used the following R packages: brms \parencite[version 2.17.0;][]{R-brms}, cmdstanr \parencite[version 0.5.3;][]{R-cmdstanr}, knitr \parencite[version 1.39;][]{R-knitr}, and tidyverse \parencite[version 1.3.2;][]{R-tidyverse}.

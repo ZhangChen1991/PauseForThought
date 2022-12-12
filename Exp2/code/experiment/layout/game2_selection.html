@@ -1,0 +1,73 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>Game layout</title>
+  <link rel="stylesheet" href="../configurations/custom.css">
+
+  <script>
+  function turnColor() {
+
+    // 200 milliseconds after participants make a choice,
+    // turn the color card; the animation lasts 500 ms.
+    setTimeout(function(){
+      document.getElementById("color_card").classList.add("is-flipped");
+      // play audio
+      document.getElementById("flip_audio").play();
+    }, 200);
+
+    // after the card is flipped, show the outcome in text
+    setTimeout(function(){
+
+      document.getElementById("game1_outcome").textContent = "+20";
+
+    }, 700);
+  }
+  </script>
+
+
+</head>
+
+<body>
+
+  <div id = "game-interface">
+    <div id = "game2-option-left">
+      <div class = "game2-text"><p>60</p></div>
+      <div id = "game2-wheel-left">
+        <div class = "pie-chart" style="background: conic-gradient(#2ECC71 0% 100%, #AAB7B8 100% 100%);"></div>
+        <div class = "radius deg_0"></div>
+        <div class = "radius deg_45"></div>
+        <div class = "radius deg_90"></div>
+        <div class = "radius deg_135"></div>
+        <div class = "radius deg_180"></div>
+        <div class = "radius deg_225"></div>
+        <div class = "radius deg_270"></div>
+        <div class = "radius deg_315"></div>
+      </div>
+      <div class = "game2-text"><p>F</p></div>
+    </div>
+
+    <div id = "game2-option-right">
+      <div class = "game2-text"><p>80</p></div>
+      <div id = "game2-wheel-right">
+        <div class = "pie-chart" style="background: conic-gradient(#2ECC71 0% 12.5%, #CACFD2 12.5% 100%);"></div>
+        <div class = "radius deg_0"></div>
+        <div class = "radius deg_45"></div>
+        <div class = "radius deg_90"></div>
+        <div class = "radius deg_135"></div>
+        <div class = "radius deg_180"></div>
+        <div class = "radius deg_225"></div>
+        <div class = "radius deg_270"></div>
+        <div class = "radius deg_315"></div>
+      </div>
+      <div class = "game2-text"><p>J</p></div>
+    </div>
+  </div>
+
+
+
+</body>
+
+</html>

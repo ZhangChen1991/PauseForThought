@@ -1,5 +1,5 @@
 ---
-title: "Pause for thought - data analysis"
+title: "Pause for thought Experiment 1 - data analysis"
 author: "Zhang Chen"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 format: 
@@ -12,6 +12,7 @@ execute:
 toc: true
 toc-depth: 3
 server: shiny
+bibliography: references.bib
 ---
 
 ## Load libraries and data
@@ -37,7 +38,7 @@ library(sjPlot)
 options(mc.cores = parallel::detectCores())
 
 # set the theme for all ggplot2 figures
-theme_set(theme_bw() +
+theme_set(theme_classic() +
             theme(legend.position = "top",
                   legend.direction = "horizontal"))
 
@@ -126,9 +127,20 @@ df_main <- df_main %>%
 
 # check trial count again
 trials_count <- df_main %>% count(subject_ID)
+
+# check if a certain trial had been recorded multiple times or not
+# this has occurred, although infrequently, in previous experiments
+unique_acount <- df_main %>%
+  mutate(
+    unique_trial = paste(subject_ID, exp_part, 
+                         block_number, trial_number, sep = "_")
+  ) %>%
+  count(unique_trial)
+
+# okay, not the case here. Okay to proceed.
 ```
 
-One participant restarted the experiment half way through Block 5. Data from this participant was excluded. Three participants had 107 trials, thus missing one trial. Data from these three participants was retained. All remaining participants had 108 trials recorded - the correct number of trials. This leaves us with 49 participants for further analysis.
+One participant restarted the experiment half way through Block 5. Data from this participant was excluded. Three participants had 107 trials, thus missing one trial. Data from these three participants were retained. All remaining participants had 108 trials recorded - the correct number of trials. This leaves us with 49 participants for further analysis.
 
 ```{r}
 # clean the main data frame
@@ -140,6 +152,25 @@ df_main <- df_main %>%
     across(c(subject_ID, age, block_number, game1_startRT,
              game1_respRT, game2_respRT), as.numeric),
     across(game2_delay_premature:game2_LP_amount, as.numeric)
+  )
+
+# compute some new variables
+df_main <- df_main %>%
+  mutate(
+    # compute the expected values of each option
+    HP_EV = game2_HP_amount * game2_HP_prob,
+    LP_EV = game2_LP_amount * game2_LP_prob,
+    # determine which option has a higher expected value
+    high_EV_option = ifelse(HP_EV > LP_EV, "HP", "LP"),
+    # determine whether participants picked the high EV option
+    choose_high_EV = ifelse(game2_choice == high_EV_option, "yes", "no"),
+    # compute the EV ratio on each trial
+    EV_ratio = (HP_EV - LP_EV)/(HP_EV + LP_EV) * 2,
+    # use effect-coding for both categorical predictors
+    game1_outcome_num = ifelse(game1_outcome == "loss", 0.5, -0.5),
+    delay_num = ifelse(delay == "yes", 0.5, -0.5),
+    # the outcome variable: choose HP = 1, choose LP = 0
+    game2_choose_HP = ifelse(game2_choice == "HP", 1, 0)
   )
 
 # check the data type of all columns before proceeding
@@ -163,7 +194,14 @@ The experimental blocks consist of (1) experimental pairs, where the game 2 pair
 
 high_prob_choices <- df_main %>%
   group_by(subject_ID, trial_type) %>%
-  summarize(high_prob = mean(game2_choice == "HP") * 100)
+  summarize(
+    # the total number of catch and experimental trials
+    n_total = n(),
+    # the number of times people choose the high-prob option
+    n_HP_choice = sum(game2_choice == "HP"),
+    # the proportion of choosing the high-prob option
+    high_prob = mean(game2_choice == "HP") * 100
+    )
 
 # plot the high-prob choices
 ggplot(high_prob_choices, aes(subject_ID, high_prob)) +
@@ -181,17 +219,6 @@ In half of the experimental pairs, the high-probability option has higher expect
 #| fig-width: 7
 #| fig-height: 5
 
-df_main <- df_main %>%
-  mutate(
-    # compute the expected values of each option
-    HP_EV = game2_HP_amount * game2_HP_prob,
-    LP_EV = game2_LP_amount * game2_LP_prob,
-    # determine which option has a higher expected value
-    high_EV_option = ifelse(HP_EV > LP_EV, "HP", "LP"),
-    # determine whether participants picked the high EV option
-    choose_high_EV = ifelse(game2_choice == high_EV_option, "yes", "no")
-  )
-
 # compute the proportion of choosing the high EV option
 df_main %>%
   filter(trial_type == "exp") %>%
@@ -204,9 +231,7 @@ df_main %>%
        color = "Which option has a higher EV?") 
 ```
 
-When the high-probability option has a higher expected value, participants chose the high-probability option for most of the time. For many participants, this value is close to 100%, leaving little room for previous wins or losses to exert any influence. When the low-probability has a higher expected value, the responses are more variable. Overall, participants were more reluctant to choose the low-probability option. Some participants seemed to have adopt the strategy of choosing the high-probability option for most of the time, even though it entails a lower expected value. There is also more variation across participants. These observations broadly match those in the healthy group in Limbrick-Oldfield et al. (2020).
-
-[**Note to self**]{.underline}: Prior wins and losses may have stronger influences on current choices, when the low-probability option has a higher expected value? This would require analyzing the two situations (i.e. the high-probability option or the low-probability has a higher expected value) separately, which does not seem to be done by Limbrick-Oldfield et al. (2020).
+When the high-probability option has a higher expected value, participants chose the high-probability option for most of the time. For many participants, this value is close to 100%, leaving little room for previous wins or losses to exert any influence. When the low-probability has a higher expected value, the responses are more variable. Overall, participants were more reluctant to choose the low-probability option. Some participants seemed to have adopt the strategy of choosing the high-probability option for most of the time, even though it entails a lower expected value. There is also more variation across participants. These observations broadly match those in the healthy group in Limbrick-Oldfield et al. [@limbrick-oldfield2020].
 
 Next I also plot the median choice reaction time for the catch trials and the experimental trials separately (@fig-medianRT).
 
@@ -269,17 +294,20 @@ df_main %>%
 
 ### Exclusion criteria
 
-For now, I adopt the exclusion criteria that participants need to choose the high-probability option on at least 80% of the catch trials in order to be included in the analysis. Data from three participants is excluded, leaving 46 participants in further analysis. Note that this does not mean the remaining participants were necessarily paying full attention to the task. For instance, a few participants seemed to have adopted the strategy of always picking the high-probability option. They probably did not pay a lot of attention to the two options presented on each trial.
-
-[**Note to self**]{.underline}: In future studies, it would be useful to include catch trials on which the low-probability option is the better choice. For instance, when presented with a 60% probability of winning 60 cents, and a 70% probability of winning 10 cents, most people would presumably agree that the 60% option is better. Including such trials would allow us to identify participants who always go for the high-probability option without processing the relevant information.
-
 ```{r}
+# get descriptives of the number of HP choices on catch trials
+HP_choice_catch <- high_prob_choices %>%
+  filter(trial_type == "catch")
+
+mean_HP_choice_catch <- round(mean(HP_choice_catch$n_HP_choice), 1)
+sd_HP_choice_catch <- round(sd(HP_choice_catch$n_HP_choice), 1)
+range_HP_choice_catch <- range(HP_choice_catch$n_HP_choice)
 
 # participants to be excluded
-subject_exclude <- high_prob_choices %>%
+subject_exclude <- HP_choice_catch %>%
   filter(
     trial_type == "catch",
-    high_prob < 80
+    n_HP_choice < 15
   ) %>%
   .$subject_ID
 
@@ -293,99 +321,17 @@ df_exp <- df_main %>%
 # check the number of remaining participants is correct
 # n_distinct(df_exp$subject_ID)
 
-# an alternative way of cleaning data
-# since the experimental trials were divided into 4 blocks,
-# next I only include blocks where participants chose the HP option
-# on at least 4 catch trials in each block.
-
-# # count how often people picked the HP option in each block
-# df_catch_choices <- df_main %>%
-#   filter(trial_type == "catch") %>%
-#   group_by(subject_ID, block_number) %>%
-#   summarize(catch_count = sum(game2_choice == "HP"))
-# 
-# # add the count of HP choices to the main data frame
-# df_main <- df_main %>%
-#   full_join(df_catch_choices, by = c("subject_ID", "block_number"))
-# 
-# # select blocks where people chose the HP option on at least 4 catch trials
-# df_exp <- df_main %>%
-#   filter(
-#     catch_count >= 4,
-#     # experimental trials only
-#     trial_type == "exp"
-#     )
+# save the cleaned data as an RDS file for other analyses
+saveRDS(df_exp, file = "../../../data/processed/df_cleaned.rds")
 ```
 
-## Game 2 start RTs
-
-Next I first examine how quickly participants started game 2 after a win vs. after a loss, and also as a function of whether there was a delay or not. I use the same data preparation and analysis strategy as in our previous work.
-
-```{r}
-
-# trial number before any exclusion
-n_before <- nrow(df_exp)
-
-# exclude trials in which the start RTs were above 5000 milliseconds
-df_after <- df_exp %>%
-  filter(game2_startRT <= 5000)
-
-# trial number after exclusion, and the proportion of excluded trials
-n_after <- nrow(df_after)
-exclude_prop <- round((n_before - n_after)/n_before * 100, 2)
-
-# check the number of remaining trials in each cell for each participant
-trials_count <- df_after %>%
-  count(subject_ID, game1_outcome, delay)
-```
-
-Trials in which the start RT of game 2 was above 5000 milliseconds were excluded (`r exclude_prop`% of all trials). For the remaining participants, each cell in the 2 (game 1 outcome, win vs. loss) by 2 (delay, yes vs. no) contains at least `r min(trials_count$n)` trials, which seems reasonable. For each participant, I then compute the mean start RT (for game 2) after a win or a loss in game 1, depending on whether there was a delay or not.
-
-```{r}
-#| label: fig-game2-startRT
-#| fig-cap: Start RT for game 2 as a function of game 1 outcome and delay. Error bars stand for 95% within-subject confidence intervals.
-#| fig-width: 6
-#| fig-height: 5
-
-# compute the mean start RT in each cell for each participant
-df_startRTs <- df_after %>%
-  group_by(subject_ID, game1_outcome, delay) %>%
-  summarize(startRT = mean(game2_startRT))
-
-# plot the results
-df_startRTs %>%
-  summarySEwithin(measurevar = "startRT",
-                  withinvars = c("game1_outcome", "delay"),
-                  idvar = "subject_ID") %>%
-  ggplot(aes(delay, startRT, color = game1_outcome)) +
-  geom_point(position = position_dodge(width = 0.5)) +
-  geom_errorbar(aes(ymin = startRT - ci, ymax = startRT +ci),
-                position = position_dodge(width = 0.5), width = 0.3) +
-  labs(x = "Delay between two games", 
-       y = "Reaction time of starting game 2 (milliseconds)",
-       color = "Game 1 outcome")
-```
-
-```{r}
-# run a repeated-measures ANOVA
-anova_startRT <- 
-  aov_ez(id = "subject_ID",
-         dv = "startRT",
-         data = df_startRTs,
-         within = c("game1_outcome", "delay"))
-
-nice(anova_startRT)
-```
-
-Wins and losses in game 1 did not significantly influence how quickly participants started game 2 (if anything, participants seemed to start game 2 more ***slowly*** after a loss than after a win). When there was a delay, participants tended to start game 2 a bit more slowly, but this effect was also not statistically significant.
-
-[**Note to self**]{.underline}: Currently, game 1 is always the same. Participants may have quickly learned that their choice actually does not matter - the result is always randomly determined. Their engagement level may have quickly decreased, which may explain why I did not observe a post-loss speeding effect here. For future studies, it may be useful to introduce some variation. For instance, the wheel may be modified, with some containing a larger blue area, others a larger yellow area. This can become another manipulation check - participants should always choose the dominant color in order to maximize their chance of winning.
+For now, I adopt the exclusion criteria that participants need to choose the high-probability option on at least 15 of the 20 catch trials (or equivalently, 75% of catch trials) in order to be included in the analysis. Data from two participants is excluded, leaving 47 participants in further analysis. Note that this does not mean the remaining participants were necessarily paying full attention to the task. For instance, a few participants seemed to have adopted the strategy of always picking the high-probability option. They might not have payed a lot of attention to the two options on a choice game. In a later section I also carry out a robustness check, in which I vary the cutoff value used for excluding participant.
 
 ## Game 2 choices
 
 ### Aggregated data
 
-I first compute the aggregated proportion of choosing the high-probability option in each cell, for each participant. For this, I include all trials (i.e., even though with start RTs \> 5000 milliseconds). The reason for making this analysis decision is because if certain trials were excluded, the choice pairs included in each cell may not be exactly comparable any more.
+I first compute the aggregated proportion of choosing the high-probability option in each cell, for each participant.
 
 ```{r}
 #| label: fig-game2-HP-choice
@@ -445,18 +391,6 @@ Wins and losses seem to have very little influence on choices. However, a potent
 In this analysis, I use the EV ratio between two options, the outcome of game 1 (loss = 0.5, win = -0.5) and whether there was a delay or not (yes = 0.5, no = -0.5) as predictors to predict whether participants chose the HP option or not on each trial. All interactions are also included, and I use the maximum random structure by including both random intercept and all random slopes per participant.
 
 ```{r}
-# recoding the predictors and the outcome variable
-df_exp <- df_exp %>%
-  mutate(
-    # compute the EV ratio on each trial
-    EV_ratio = (HP_EV - LP_EV)/(HP_EV + LP_EV) * 2,
-    # use effect-coding for both categorical predictors
-    game1_outcome_num = ifelse(game1_outcome == "loss", 0.5, -0.5),
-    delay_num = ifelse(delay == "yes", 0.5, -0.5),
-    # the outcome variable: choose HP = 1
-    game2_choose_HP = ifelse(game2_choice == "HP", 1, 0)
-  )
-
 # fit a brms model - go for the maximum random structure
 fit_HP_choice <- brm(
   game2_choose_HP ~ EV_ratio * game1_outcome_num * delay_num +
@@ -471,8 +405,8 @@ fit_HP_choice <- brm(
     ),
   data = df_exp,
   cores = 4,
-  iter = 4000,
-  warmup = 2000,
+  iter = 15000,
+  warmup = 5000,
   seed = 1234,
   file = "brms-fits/fit_HP_choice",
   backend = "cmdstanr"
@@ -497,6 +431,8 @@ Some general posterior predictive checks. While the model seems to capture the e
 # check the trace plot, looks good.
 # plot(fit_HP_choice)
 
+# loo(fit_HP_choice)
+
 # posterior predictive checks
 yrep <- posterior_predict(fit_HP_choice)
 
@@ -514,6 +450,96 @@ ppc_bars_grouped(df_exp$game2_choose_HP, yrep,
 saveRDS(df_exp, "brms-fits/data.rds")
 saveRDS(yrep, "brms-fits/predicted.rds")
 ```
+
+Make a plot to show the effects of EV ratio and delay.
+
+```{r}
+#| label: fig-EV-ratio-delay
+#| fig-cap: Probability of choosing the HP option as a function of EV ratio and pause.
+#| fig-width: 4
+#| fig-height: 4
+
+# Here I will plot the probability of choosing the HP option
+# as a function of the EV ratio and whether there was a delay or not
+# EV ratio will be the x axis, and delay (yes vs. no) as two colors
+# here I define a small adjustment value to the x axis (i.e. EV ratio),
+# that moves all no delay condition data points a bit to the left,
+# and the delay condition data points to the right, to reduce overlapping.
+x_adj_amount <- 0.025
+
+# compute the probability of choosing HP for each participant
+# in each condition.
+plot_raw_data <- df_exp %>%
+  group_by(subject_ID, EV_ratio, delay) %>%
+  summarize(p_HP = mean(game2_choose_HP)) %>%
+  mutate(
+    # add a bit adjustment as mentioned above
+    EV_ratio_adj = ifelse(delay == "yes", x_adj_amount, -x_adj_amount),
+    EV_ratio_plot = EV_ratio + EV_ratio_adj
+  )
+
+# get the predicted prob of choosing HP from brms
+int_conds <- list(
+  EV_ratio = unique(df_exp$EV_ratio),
+  delay_num = c(-0.5, 0.5)
+)
+
+plot_prediction <- 
+  conditional_effects(
+    fit_HP_choice, 
+    "EV_ratio:delay_num",
+    int_conditions = int_conds)
+
+# turn the predictions into a tibble
+plot_pred <- as_tibble(
+  plot_prediction$`EV_ratio:delay_num`
+  ) %>%
+  mutate(
+    # similarly, add a little adjustment to the EV ratio
+    delay = ifelse(delay_num == 0.5, "yes", "no"),
+    EV_ratio_adj = ifelse(delay == "yes", x_adj_amount, -x_adj_amount),
+    EV_ratio_plot = EV_ratio + EV_ratio_adj
+  )
+
+# plot the results
+EV_delay_plot <- plot_raw_data %>%
+  ggplot(aes(EV_ratio_plot, p_HP, color = delay)) +
+  # plot raw data per participant as transparent open circles
+  # jitter the dots vertically a bit to reduce overlapping
+  geom_jitter(alpha = 0.2, height = 0.05, shape = 1) +
+  # connect the predicted prob of choosing HP with lines
+  geom_line(data = plot_pred, 
+            aes(x = EV_ratio_plot,
+                y = estimate__,
+                group = delay),
+            alpha = 0.4) +
+  # estimates as solid points
+  geom_point(data = plot_pred, 
+             aes(EV_ratio_plot, 
+                 estimate__)) +
+  # add 95% CI as error bars
+  geom_errorbar(data = plot_pred,
+                aes(x = EV_ratio_plot, 
+                    y = estimate__,
+                    ymin = lower__, 
+                    ymax = upper__),
+                width = 0.05) +
+  labs(x = "EV ratio", 
+       y = "P(Choose the HP option)",
+       color = "Pause")
+
+EV_delay_plot
+
+# save as a RDS file - makes it easier to combine with other plots
+saveRDS(EV_delay_plot, "plots/EV_delay_plot.rds")
+
+# save as a png file
+ggsave(filename = "plots/EV_delay_plot.png", 
+       EV_delay_plot,
+       width = 4, height = 4)
+```
+
+### Individual PPC (Shiny)
 
 Next I make a custom posterior predictive check for each participant separately, focusing on the effect of EV ratio. Note that this code uses Shiny, and will only run when the Quarto document is executed within RStudio (click on the Run Document button).
 
@@ -627,11 +653,254 @@ tab_model(fit_HP_choice)
 
 After a delay, participants became more sensitive to the EV ratios in their choices. However, the posterior predictive checks show that the model does not predict the effects of EV ratio very well. When the EV ratio is negative (i.e., when the LP option has a higher EV), the predicted choices show large deviations from the observed choices.
 
-[**Note to self**]{.underline}: May be informative to fit the Cumulative Prospect Theory model to the current data (and that of Limbrick-Oldfield et al.) to see if the model fit can be improved. It may further tell us which parameter is influenced by including the delay (and in Limbrick-Oldfield et al., between the two groups).
+### Robustness check
 
-## Game 2 choice RT
+In the analysis above, I used the somewhat arbitrary cutoff value that participants needed to choose the high-probability option on at least 75% of the catch trials in order to be included in the analysis. Here I repeat the analysis again, each time using a different cutoff value, to check the robustness of the results.
 
-### Aggregated data
+```{r}
+# get all unique numbers of catch trials across participants
+# on which they picked the high-prob option
+high_prob_cutoffs <- high_prob_choices %>%
+  filter(trial_type == "catch") %>%
+  .$n_HP_choice %>% unique()
+
+# an empty tibble to hold all results
+overall_summary <- tibble()
+
+# go through the six cutoff values one by one
+# and fit the model with each of the cutoff values
+for (high_prob_cutoff in high_prob_cutoffs) {
+  # participants to be excluded
+  subject_exclude <- high_prob_choices %>%
+    filter(trial_type == "catch",
+           n_HP_choice < high_prob_cutoff) %>%
+    .$subject_ID
+  
+  df_exp_tmp <- df_main %>%
+    filter(!subject_ID %in% subject_exclude,
+           # experimental trials only
+           trial_type == "exp")
+  
+  # check the number of participants remaining
+  n_subj <-  n_distinct(df_exp_tmp$subject_ID)
+  
+  # fit a brms model - go for the maximum random structure
+  brms_file_name <-
+    paste("brms-fits/fit_exp_HP",
+          high_prob_cutoff, sep = "_")
+  
+  fit_HP_choice <- brm(
+    game2_choose_HP ~ EV_ratio * game1_outcome_num * delay_num +
+      (EV_ratio * game1_outcome_num * delay_num | subject_ID),
+    family = bernoulli(link = "logit"),
+    prior =
+      c(
+        prior(normal(0, 2), class = Intercept),
+        prior(normal(0, 1), class = b),
+        prior(normal(0, 1), class = sd),
+        prior(lkj(2), class = cor)
+      ),
+    data = df_exp_tmp,
+    cores = 4,
+    iter = 15000,
+    warmup = 5000,
+    seed = 1234,
+    file = brms_file_name,
+    backend = "cmdstanr"
+  )
+  
+  # extract summary of the posterior draws
+  post_summary <-
+    as_tibble(summary(fit_HP_choice)$fixed, rownames = NA) %>%
+    rownames_to_column(var = "parameter") %>%
+    mutate(n_subj = n_subj,
+           HP_cutoff = high_prob_cutoff)
+  
+  # add it to the overall tibble
+  overall_summary <- bind_rows(overall_summary, post_summary)
+}
+```
+
+```{r}
+#| label: fig-robustness
+#| fig-cap: Robustness check
+#| fig-width: 6
+#| fig-height: 8
+
+# do some cleaning and reformatting of the variables
+overall_summary_selected <- overall_summary %>%
+  # no need to plot the Intercept, not informative
+  filter(parameter != "Intercept") %>%
+  mutate(
+    # Re-code the labels so that it looks better
+    param_label = 
+      recode(parameter,
+             "EV_ratio" = "EV Ratio",
+             "game1_outcome_num" = "Previous Outcome (Loss vs. Win)",
+             "delay_num" = "Pause (Yes vs. No)",
+             "EV_ratio:game1_outcome_num" = "EV Ratio * Previous Outcome",
+             "EV_ratio:delay_num" = "EV Ratio * Pause",
+             "game1_outcome_num:delay_num" = "Previous Outcome * Pause",
+             "EV_ratio:game1_outcome_num:delay_num" = 
+               "EV Ratio * Previous Outcome * Pause"),
+    param_label = 
+      factor(param_label,
+             levels = c("EV Ratio",
+                        "Previous Outcome (Loss vs. Win)",
+                        "Pause (Yes vs. No)",
+                        "EV Ratio * Previous Outcome",
+                        "EV Ratio * Pause",
+                        "Previous Outcome * Pause",
+                        "EV Ratio * Previous Outcome * Pause")),
+    # rename variables
+    CI_upper = `u-95% CI`,
+    CI_lower = `l-95% CI`
+  )
+
+# data frame for showing the number of participants
+df_n_subj <- overall_summary_selected %>%
+  filter(parameter == "EV_ratio") %>%
+  mutate(HP_cutoff = as.factor(HP_cutoff))
+
+# plot the posterior distributions from all models
+robustness_plot <- overall_summary_selected %>%
+  mutate(HP_cutoff = as.factor(HP_cutoff)) %>%
+  ggplot(aes(HP_cutoff, Estimate)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_point() +
+  geom_errorbar(aes(ymin = CI_lower, ymax = CI_upper),width = 0.2,) +
+  # add the number of participants left
+  geom_text(data = df_n_subj, aes(HP_cutoff, 0.5, label = n_subj)) +
+  facet_wrap(~param_label, ncol = 1, scales = "free_y") +
+  labs(x = "Number of high EV choices on catch trials",
+       y = "Estimate (log odds-ratio)") 
+
+robustness_plot
+
+ggsave("plots/robustness_Exp1.png", robustness_plot,
+       width = 6, height = 8)
+```
+
+## Game 2 start RTs
+
+### Data preparation
+
+Next I examine how quickly participants started game 2 after a win vs. after a loss, and also as a function of whether there was a delay or not.
+
+```{r}
+# trial number before any exclusion
+n_before <- nrow(df_exp)
+
+# exclude trials in which the start RTs were above 5000 milliseconds
+df_after <- df_exp %>%
+  filter(game2_startRT <= 5000)
+
+# trial number after exclusion, and the proportion of excluded trials
+n_after <- nrow(df_after)
+exclude_prop <- round((n_before - n_after)/n_before * 100, 2)
+
+# check the number of remaining trials in each cell for each participant
+trials_count <- df_after %>%
+  count(subject_ID, game1_outcome, delay)
+```
+
+Trials in which the start RT of game 2 was above 5000 milliseconds were excluded (`r exclude_prop`% of all trials). For the remaining participants, each cell in the 2 (game 1 outcome, win vs. loss) by 2 (delay, yes vs. no) contains at least `r min(trials_count$n)` trials, which seems reasonable. For each participant, I then compute the mean start RT (for game 2) after a win or a loss in game 1, depending on whether there was a delay or not.
+
+```{r}
+#| label: fig-game2-startRT
+#| fig-cap: Start RT for game 2 as a function of game 1 outcome and delay. Error bars stand for 95% within-subject confidence intervals.
+#| fig-width: 6
+#| fig-height: 5
+
+# compute the mean start RT in each cell for each participant
+df_startRTs <- df_after %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(startRT = mean(game2_startRT))
+
+# plot the results
+df_startRTs %>%
+  summarySEwithin(measurevar = "startRT",
+                  withinvars = c("game1_outcome", "delay"),
+                  idvar = "subject_ID") %>%
+  ggplot(aes(delay, startRT, color = game1_outcome)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = startRT - ci, ymax = startRT +ci),
+                position = position_dodge(width = 0.5), width = 0.3) +
+  labs(x = "Pause between two games", 
+       y = "Reaction time of starting game 2 (milliseconds)",
+       color = "Game 1 outcome")
+```
+
+### Fit model
+
+Fit the data with a hierarchical regression.
+
+```{r}
+# since startRT is positively skewed,
+# take the natural logarithm of the startRT as the dependent variable
+df_startRT <- df_after %>%
+  mutate(log_startRT = log(game2_startRT))
+
+# fit a brms model, with student's t as the likelihood function
+fit_startRT_student <- brm(
+  log_startRT|trunc(ub = log(5000)) ~  
+    game1_outcome_num * delay_num +
+    (game1_outcome_num * delay_num|subject_ID),
+  family = student(),
+  # init = list(
+  #   list(Intercept = 5.5, nu = 20),
+  #   list(Intercept = 6, nu = 20),
+  #   list(Intercept = 6.5, nu = 20),
+  #   list(Intercept = 7, nu = 20)
+  # ),
+  prior = 
+    c(
+      prior(normal(6.5, 1.5), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(normal(0, 1), class = sigma),
+      prior(gamma(2, 0.1), class = nu),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_startRT,
+  cores = 4,
+  iter = 7000,
+  warmup = 2000,
+  seed = 1234,
+  file = "brms-fits/fit_startRT_student",
+  backend = "cmdstanr"
+  )
+```
+
+### Model results
+
+```{r}
+# check model diagnostics
+# plot(fit_startRT_student)
+# the traceplots look okay
+
+# loo(fit_startRT_student)
+# All Pareto k estimates are good (k < 0.5).
+
+# posterior predictive check
+yrep <- posterior_predict(fit_startRT_student)
+
+# turn the start RT back to the original scale
+yrep <- exp(yrep)
+
+ppc_dens_overlay(df_startRT$game2_startRT, yrep[1:50, ])
+
+remove(yrep)
+```
+
+```{r, results='asis'}
+# have a look at the summary of posterior distributions
+tab_model(fit_startRT_student, digits = 2)
+```
+
+## Game 2 choice RTs
+
+### Data preparation
 
 Next I examine whether the increased sensitivity towards the EV ratio after a delay may be explained by participants making decisions more slowly in the delay condition.
 
@@ -656,7 +925,17 @@ To reduce the influence of a few long reaction times, I exclude the trials where
 #| fig-width: 6
 #| fig-height: 5
 
+# number of trials before exclusion
+n_before <- nrow(df_exp)
+
+# exclude trials with choice RTs above 5000 ms
 df_choiceRT <- df_exp %>% filter(game2_respRT <= 5000)
+
+# number of trials after exclusion
+n_after <- nrow(df_choiceRT)
+
+# proportion of excluded trials
+prop_exclude <- round((n_before - n_after)/n_before * 100, 2)
 
 df_choiceRT_summary <- df_choiceRT %>%
   group_by(subject_ID, game1_outcome, delay) %>%
@@ -676,35 +955,24 @@ df_choiceRT_summary %>%
        color = "Game 1 outcome")
 ```
 
-```{r}
-# run a repeated-measures ANOVA
-anova_choiceRT <- 
-  aov_ez(id = "subject_ID",
-         dv = "choiceRT",
-         data = df_choiceRT_summary,
-         within = c("game1_outcome", "delay"))
+### Fit model
 
-nice(anova_choiceRT)
-```
-
-### Multilevel analyses
-
-I use log-transformed choice RT as the dependent variable. In total I tried four brms models, with either a Student's t or a Gaussian function as the likelihood, and whether the EV ratio is included as a predictor. Both game 1 outcome, whether there was a pause or not and their interaction are always included as predictors.
+I use log-transformed choice RT as the dependent variable (truncated with a upper bound of log(5000), as above). Both game 1 outcome, whether there was a pause or not and their interaction are included as predictors.
 
 ```{r}
-
 # log-transform the choice RT
 df_choiceRT <- df_choiceRT %>%
   mutate(log_choiceRT = log(game2_respRT))
 
 # fit a brms model, with student's t as the likelihood function
 fit_choiceRT_student <- brm(
-  log_choiceRT ~  game1_outcome_num * delay_num +
+  log_choiceRT|trunc(ub = log(5000)) ~  
+    game1_outcome_num * delay_num +
     (game1_outcome_num * delay_num|subject_ID),
   family = student(),
   prior = 
     c(
-      prior(normal(6.5, 1.5), class = Intercept),
+      prior(normal(6.5, 1), class = Intercept),
       prior(normal(0, 1), class = b),
       prior(normal(0, 1), class = sd),
       prior(normal(0, 1), class = sigma),
@@ -713,96 +981,38 @@ fit_choiceRT_student <- brm(
     ),
   data = df_choiceRT,
   cores = 4,
-  iter = 4000,
+  iter = 7000,
   warmup = 2000,
-  seed = 1234,
+  seed = 12345,
   file = "brms-fits/fit_choiceRT_student",
-  backend = "cmdstanr"
+  backend = "cmdstanr",
+  refresh = 1
   )
-
-# try one with a normal likelihood
-fit_choiceRT_normal <- brm(
-  log_choiceRT ~  game1_outcome_num * delay_num +
-    (game1_outcome_num * delay_num|subject_ID),
-  family = gaussian(),
-  prior = 
-    c(
-      prior(normal(6.5, 1.5), class = Intercept),
-      prior(normal(0, 1), class = b),
-      prior(normal(0, 1), class = sd),
-      prior(normal(0, 1), class = sigma),
-      prior(lkj(2), class = cor)
-    ),
-  data = df_choiceRT,
-  cores = 4,
-  iter = 4000,
-  warmup = 2000,
-  seed = 1234,
-  file = "brms-fits/fit_choiceRT_normal",
-  backend = "cmdstanr"
-  )
-
-# what if I add EV ratio? With student's t as likelihood
-fit_choiceRT_withEV_student <- brm(
-  log_choiceRT ~  EV_ratio * game1_outcome_num * delay_num +
-    (EV_ratio* game1_outcome_num * delay_num|subject_ID),
-  family = student(),
-  prior = 
-    c(
-      prior(normal(6.5, 1.5), class = Intercept),
-      prior(normal(0, 1), class = b),
-      prior(normal(0, 1), class = sd),
-      prior(normal(0, 1), class = sigma),
-      prior(gamma(2, 0.1), class = nu),
-      prior(lkj(2), class = cor)
-    ),
-  data = df_choiceRT,
-  cores = 4,
-  iter = 4000,
-  warmup = 2000,
-  seed = 1234,
-  file = "brms-fits/fit_choiceRT_withEV_student",
-  backend = "cmdstanr"
-  )
-
-# with EV ratio as a predictor, gaussian likelihood
-fit_choiceRT_withEV_normal <- brm(
-  log_choiceRT ~  EV_ratio * game1_outcome_num * delay_num +
-    (EV_ratio* game1_outcome_num * delay_num|subject_ID),
-  family = gaussian(),
-  prior = 
-    c(
-      prior(normal(6.5, 1.5), class = Intercept),
-      prior(normal(0, 1), class = b),
-      prior(normal(0, 1), class = sd),
-      prior(normal(0, 1), class = sigma),
-      prior(lkj(2), class = cor)
-    ),
-  data = df_choiceRT,
-  cores = 4,
-  iter = 4000,
-  warmup = 2000,
-  seed = 1234,
-  file = "brms-fits/fit_choiceRT_withEV_normal",
-  backend = "cmdstanr"
-  )
-
 ```
 
-```{r}
-# posterior predictive checks, 
-# the results from the two models are largely in line 
-pp_check(fit_choiceRT_student, ndraws = 30)
-# pp_check(fit_choiceRT_normal, ndraws = 30)
+### Model results
 
-pp_check(fit_choiceRT_withEV_student, ndraws = 30)
-# pp_check(fit_choiceRT_withEV_normal, ndraws = 30)
+```{r}
+# check model diagnostics
+# plot(fit_choiceRT_student)
+# the traceplots look okay
+
+# loo(fit_choiceRT_student)
+# All Pareto k estimates are good (k < 0.5).
+
+# posterior predictive check
+yrep <- posterior_predict(fit_choiceRT_student)
+
+# turn the choice RT back to the original scale
+yrep <- exp(yrep)
+
+ppc_dens_overlay(df_choiceRT$game2_respRT, yrep[1:50, ])
+
+remove(yrep)
 ```
 
-Model that includes the EV ratio as a predictor, and uses Student's t as the likelihood function.
-
-```{r}
-tab_model(fit_choiceRT_withEV_student)
+```{r,results='asis'}
+tab_model(fit_choiceRT_student, digits = 4)
 ```
 
 A few findings are worth noting, and largely consistent across the models:
@@ -816,6 +1026,97 @@ A few findings are worth noting, and largely consistent across the models:
 4.  Delay interacted with EV ratio, but only in the model assuming a Student's t likelihood. (In the Gaussian model, the effect was in the same direction, but the 95% CI included 0.) Thus, choice RTs were influenced by the EV ratio more after a pause.
 
 The interaction effect are broadly in line with the effect observed above for choices. After a pause, both participants' choices and their choice RTs are more influenced by the EV ratios. Their choices overall do not become slower though after a pause.
+
+## RT plots
+
+```{r}
+# compute the mean of log start RT in each cell for each participant
+startRT_obs <- df_startRT %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(obs = mean(log_startRT)) 
+
+# do the same for the log choice RT
+choiceRT_obs <- df_choiceRT %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(obs = mean(log_choiceRT)) 
+
+# get the predicted log start RT from the model
+int_conds <- list(
+  game1_outcome_num = c(-0.5, 0.5),
+  delay_num = c(-0.5, 0.5)
+)
+
+startRT_pred <- conditional_effects(
+  fit_startRT_student, 
+  "game1_outcome_num:delay_num",
+  int_conditions = int_conds)
+
+# turn the predictions into a tibble
+startRT_pred <- as_tibble(
+  startRT_pred$`game1_outcome_num:delay_num`
+  ) %>%
+  mutate(
+    delay = ifelse(delay_num == 0.5, "yes", "no"),
+    game1_outcome = ifelse(game1_outcome_num == 0.5, "loss", "win")
+  )
+
+# do the same for log choice RT
+choiceRT_pred <- conditional_effects(
+  fit_choiceRT_student, 
+  "game1_outcome_num:delay_num",
+  int_conditions = int_conds)
+
+# turn the predictions into a tibble
+choiceRT_pred <- as_tibble(
+  choiceRT_pred$`game1_outcome_num:delay_num`
+  ) %>%
+  mutate(
+    delay = ifelse(delay_num == 0.5, "yes", "no"),
+    game1_outcome = ifelse(game1_outcome_num == 0.5, "loss", "win")
+  )
+
+# combine the data frames
+startRT_obs <- startRT_obs %>% mutate(var = "Start RT")
+startRT_pred <- startRT_pred %>% mutate(var = "Start RT")
+choiceRT_obs <- choiceRT_obs %>% mutate(var = "Choice RT")
+choiceRT_pred <- choiceRT_pred %>% mutate(var = "Choice RT")
+
+RT_obs <- bind_rows(startRT_obs, choiceRT_obs) %>%
+  mutate(var = factor(var, levels = c("Start RT", "Choice RT")))
+
+RT_pred <- bind_rows(startRT_pred, choiceRT_pred) %>%
+  mutate(var = factor(var, levels = c("Start RT", "Choice RT")))
+
+# make a plot
+RT_plot <- ggplot(RT_obs, aes(game1_outcome, obs, color = delay)) +
+  geom_point(position = position_jitterdodge(
+    jitter.width = 0.2,
+    jitter.height = 0,
+    dodge.width = 0.5), alpha = 0.1) +
+  geom_point(data = RT_pred, 
+             aes(game1_outcome, estimate__,
+                 color = delay),
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(data = RT_pred,
+                aes(x = game1_outcome,
+                    y = estimate__,
+                    ymin = lower__,
+                    ymax = upper__),
+                position = position_dodge(width = 0.5),
+                width = 0.2) +
+  labs(x = "Previous outcome",
+       y = "Logarithm of reaction time [log(ms)]",
+       color = "Pause") +
+  facet_wrap(~var, ncol = 2, scales = "free")
+
+RT_plot
+
+# save as a png file
+ggsave("plots/RTs_Exp1.png", RT_plot, width = 4, height = 4)
+
+# also save as a rds file for later use
+saveRDS(RT_plot, "plots/RTs_Exp1.rds")
+```
 
 ## Premature responses
 

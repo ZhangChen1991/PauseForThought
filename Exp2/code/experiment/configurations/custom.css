@@ -1,0 +1,432 @@
+/* define some global variables
+To define a global variable, add two hypens (-) to its name.
+The variable can be used later on by using the var() expression.
+*/
+
+:root {
+
+  /***************************************************
+  The overall game interface
+  ***************************************************/
+  /* the width and height of the game interface */
+  --interface-width: 800px;
+  --interface-height: 600px;
+
+  /* the x, y coordinates of the center of the interface */
+  --interface-center-x: calc(var(--interface-width)/2);
+  --interface-center-y: calc(var(--interface-height)/2);
+
+  /***************************************************
+  The start message
+  ***************************************************/
+  --start-message-font-size: 35px;
+
+  --start-message-width: var(--interface-width);
+  --start-message-height: calc(var(--start-message-font-size)*3);
+
+  --start-message-from-top: 150px;
+
+  /***************************************************
+  The total amount of points so far.
+  ***************************************************/
+  --total-message-font-size: 35px;
+
+  --total-message-width: var(--interface-width);
+  --start-message-height: var(--total-message-font-size);
+
+  /***************************************************
+  Elements used in game 1
+  ***************************************************/
+
+  /* the size of the wheel used in game 1 and game 2*/
+  --wheel-inner-size: 246px; /*size of the wheel itself*/
+  --wheel-border: 2px; /* size of the border */
+  --wheel-size: calc(var(--wheel-inner-size) + 2*var(--wheel-border)); /* size including border */
+
+  /* the position of the wheel */
+  --game1-wheel-from-left: calc(var(--interface-center-x) - var(--wheel-size)/2);
+  --game1-wheel-from-top: calc(var(--interface-center-y) - var(--wheel-size)/2 - 50px);
+
+  /* the size of the arrow on top of the wheel */
+  --game1-arrow-size: 45px;
+
+  /* put the arrow right on top of the wheel, in the middle */
+  --game1-arrow-from-left: calc(var(--interface-center-x) - var(--game1-arrow-size)/2);
+  --game1-arrow-from-top: calc(var(--game1-wheel-from-top) - var(--game1-arrow-size) - 5px);
+
+  /* text box below the wheel for showing the outcome */
+  --game1-outcome-width: var(--wheel-size);
+  --game1-outcome-height: 45px;
+
+  /* put the text box right below the wheel, centered */
+  --game1-outcome-from-top: calc(var(--game1-wheel-from-top) + var(--wheel-size) + 15px);
+  --game1-outcome-from-left: var(--game1-wheel-from-left);
+
+  /* two choice buttons in game 1*/
+  --button-size: 70px;
+  --button-font-size: 50px;
+
+  /* determine the locations of the two buttons */
+  --button-from-bottom: 100px;
+  --button-from-side: 150px;
+
+  /***************************************************
+  Elements used in game 2
+  ***************************************************/
+
+  /* In game 2, people choose between two options.
+  Each option offers a certain probability of winning a certain amount.
+  Visually, each option consists of three parts (from top to bottom):
+  (1) amount in text, (2) pie chart for probability info, and (3) response key.
+  */
+
+
+  /* the size of the text for showing the amount, and the response key*/
+  --game2-text-height: 45px;
+  --game2-text-width: var(--wheel-size);
+
+  /* compute the total size of the two options */
+  --game2-option-height: calc(var(--wheel-size) + 2*var(--game2-text-height));
+  --game2-option-width: var(--wheel-size);
+
+  /* the positions of the two options */
+  --game2-option-from-top: 120px;
+  --game2-option-from-side: 100px; /* the distance between the edge of the interface and the edge of a wheel */
+
+}
+
+
+/**************************
+instructions
+**************************/
+.instruction {
+  width:1000px;
+}
+
+
+/**************************
+game area that contains all elements of a game
+**************************/
+#game-interface{
+  width: var(--interface-width);
+  height: var(--interface-height);
+  position: relative;
+}
+
+
+/**************************
+start message
+**************************/
+#start-message{
+  width: var(--start-message-width);
+  height: var(--start-message-height);
+  top: var(--start-message-from-top);
+}
+
+#start-message p{
+  width: 100%;
+  margin: 0;
+  font-size: var(--start-message-font-size);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: black;
+  text-align: center;
+  /* do not allow users to select text */
+  user-select: none; /* supported by Chrome and Opera */
+   -webkit-user-select: none; /* Safari */
+   -khtml-user-select: none; /* Konqueror HTML */
+   -moz-user-select: none; /* Firefox */
+   -ms-user-select: none; /* Internet Explorer/Edge */
+}
+
+/**************************
+the total amount of points
+**************************/
+#total-message{
+  width: var(--total-message-width);
+  height: var(--total-message-height);
+  bottom: 20px;
+  position: absolute;
+}
+
+#total-message p{
+  width: 100%;
+  margin: 0;
+  font-size: var(--total-message-font-size);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: black;
+  text-align: center;
+  /* do not allow users to select text */
+  user-select: none; /* supported by Chrome and Opera */
+   -webkit-user-select: none; /* Safari */
+   -khtml-user-select: none; /* Konqueror HTML */
+   -moz-user-select: none; /* Firefox */
+   -ms-user-select: none; /* Internet Explorer/Edge */
+}
+
+/**************************
+the wheel used in game 1
+**************************/
+#game1-wheel{
+  width: var(--wheel-size);
+	height: var(--wheel-size);
+  left: var(--game1-wheel-from-left);
+  top: var(--game1-wheel-from-top);
+  position: absolute;
+  overflow: hidden;
+  transition: 1.5s;
+}
+
+.pie-chart {
+	width: var(--wheel-inner-size);
+	height: var(--wheel-inner-size);
+	border-radius: 50%;
+  border: gray var(--wheel-border) solid;
+}
+
+/* draw radius within the pie-chart*/
+.radius {
+  position: absolute;
+  width: 50%;
+  height: var(--wheel-border);
+  left: 50%;
+  top: 50%;
+  background: gray;
+  transform-origin: left center;
+}
+
+.deg_0 {
+  transform: rotate(-90deg);
+}
+
+.deg_10 {
+  transform: rotate(-54deg);
+}
+
+.deg_20 {
+  transform: rotate(-18deg);
+}
+
+.deg_30 {
+  transform: rotate(18deg);
+}
+
+.deg_40 {
+  transform: rotate(54deg);
+}
+
+.deg_50 {
+  transform: rotate(90deg);
+}
+
+.deg_60 {
+  transform: rotate(126deg);
+}
+
+.deg_70 {
+  transform: rotate(162deg);
+}
+
+.deg_80 {
+  transform: rotate(198deg);
+}
+
+.deg_90 {
+  transform: rotate(234deg);
+}
+
+
+/**************************
+the arrow used in game 1
+**************************/
+#game1-arrow {
+  width: var(--game1-arrow-size);
+	height: var(--game1-arrow-size);
+  left: var(--game1-arrow-from-left);
+  top: var(--game1-arrow-from-top);
+  position: absolute;
+}
+
+#game1-arrow p{
+  width: 100%;
+  margin: 0;
+  font-size: var(--game1-arrow-size);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: black;
+  text-align: center;
+  /* do not allow users to select text */
+  user-select: none; /* supported by Chrome and Opera */
+   -webkit-user-select: none; /* Safari */
+   -khtml-user-select: none; /* Konqueror HTML */
+   -moz-user-select: none; /* Firefox */
+   -ms-user-select: none; /* Internet Explorer/Edge */
+}
+
+/**************************
+outcome for game 1
+**************************/
+#game1-outcome{
+  width: var(--game1-outcome-width);
+  height: var(--game1-outcome-height);
+  position: absolute;
+  left: var(--game1-outcome-from-left);
+  top: var(--game1-outcome-from-top);
+}
+
+#game1-outcome p{
+  width: 100%;
+  margin: 0;
+  font-size: var(--game1-outcome-height);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: black;
+  text-align: center;
+  /* do not allow users to select text */
+  user-select: none; /* supported by Chrome and Opera */
+   -webkit-user-select: none; /* Safari */
+   -khtml-user-select: none; /* Konqueror HTML */
+   -moz-user-select: none; /* Firefox */
+   -ms-user-select: none; /* Internet Explorer/Edge */
+}
+
+/**************************
+two choice buttons in game 1
+**************************/
+#game1-left-button {
+  width: var(--button-size);
+  height: var(--button-size);
+  position: absolute;
+  bottom: var(--button-from-bottom);
+  left: var(--button-from-side);
+  background-color: #FFFF00;
+}
+
+#game1-left-button p{
+  width: 100%;
+  margin: 0;
+  font-size: var(--button-font-size);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: black;
+  text-align: center;
+  /* do not allow users to select text */
+  user-select: none; /* supported by Chrome and Opera */
+   -webkit-user-select: none; /* Safari */
+   -khtml-user-select: none; /* Konqueror HTML */
+   -moz-user-select: none; /* Firefox */
+   -ms-user-select: none; /* Internet Explorer/Edge */
+}
+
+#game1-right-button {
+  width: var(--button-size);
+  height: var(--button-size);
+  position: absolute;
+  bottom: var(--button-from-bottom);
+  right: var(--button-from-side);
+  background-color: #00FFFF;
+}
+
+#game1-right-button p{
+  width: 100%;
+  margin: 0;
+  font-size: var(--button-font-size);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: black;
+  text-align: center;
+  /* do not allow users to select text */
+  user-select: none; /* supported by Chrome and Opera */
+   -webkit-user-select: none; /* Safari */
+   -khtml-user-select: none; /* Konqueror HTML */
+   -moz-user-select: none; /* Firefox */
+   -ms-user-select: none; /* Internet Explorer/Edge */
+}
+
+/* Add border when an option is selected */
+.selected {
+  border: 4px solid black;
+  border-radius: 10px;
+}
+
+.unselected{
+  border: 4px solid #FFFFFF;
+  border-radius: 10px;
+}
+
+
+/**************************
+the two options in game 2
+**************************/
+#game2-option-left{
+  width: var(--game2-option-width);
+	height: var(--game2-option-height);
+  left: var(--game2-option-from-side);
+  top: var(--game2-option-from-top);
+  position: absolute;
+}
+
+
+#game2-option-right{
+  width: var(--game2-option-width);
+	height: var(--game2-option-height);
+  right: var(--game2-option-from-side);
+  top: var(--game2-option-from-top);
+  position: absolute;
+}
+
+
+/**************************
+the text messages in game 2
+**************************/
+.game2-text{
+  width: var(--game2-text-width);
+  height: var(--game2-text-height);
+  position: relative;
+}
+
+.game2-text p{
+  width: 100%;
+  margin: 0;
+  font-size: var(--game2-text-height);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: black;
+  text-align: center;
+  /* do not allow users to select text */
+  user-select: none; /* supported by Chrome and Opera */
+   -webkit-user-select: none; /* Safari */
+   -khtml-user-select: none; /* Konqueror HTML */
+   -moz-user-select: none; /* Firefox */
+   -ms-user-select: none; /* Internet Explorer/Edge */
+}
+
+/**************************
+the wheels used in game 2
+**************************/
+#game2-wheel-left{
+  width: var(--wheel-size);
+	height: var(--wheel-size);
+  position:relative;
+}
+
+#game2-wheel-right{
+  width: var(--wheel-size);
+	height: var(--wheel-size);
+  position: relative;
+}
