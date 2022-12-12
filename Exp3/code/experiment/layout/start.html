@@ -1,0 +1,43 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>Game layout</title>
+  <link rel="stylesheet" href="../configurations/custom.css">
+
+  <script>
+  function turnColor() {
+
+    // 200 milliseconds after participants make a choice,
+    // turn the color card; the animation lasts 500 ms.
+    setTimeout(function(){
+      document.getElementById("color_card").classList.add("is-flipped");
+      // play audio
+      document.getElementById("flip_audio").play();
+    }, 200);
+
+    // after the card is flipped, show the outcome in text
+    setTimeout(function(){
+
+      document.getElementById("game1_outcome").textContent = "+20";
+
+    }, 700);
+  }
+  </script>
+
+
+</head>
+
+<body>
+
+  <div id = "game-interface">
+    <div id = "start-message"><p>Block 1 of 5, Trial 12 of 120<br><br>Press the space bar to continue.</p></div>
+  </div>
+
+
+
+</body>
+
+</html>

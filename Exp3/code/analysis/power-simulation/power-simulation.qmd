@@ -1,0 +1,170 @@
+---
+title: "Pause for thought Experiment 3 - power simulation"
+author: "Zhang Chen"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+format: 
+  html:
+    code-fold: true
+editor: visual
+execute: 
+  warning: false
+  error: false
+toc: true
+toc-depth: 3
+---
+
+## Load libraries and model
+
+```{r}
+# load libraries
+library(tidyverse)
+library(loo)
+library(bridgesampling)
+library(brms)
+library(cmdstanr)
+library(bayesplot)
+library(bayestestR)
+library(sjPlot)
+
+# parallelize the chains using all the cores
+options(mc.cores = parallel::detectCores())
+
+# set the theme for all ggplot2 figures
+theme_set(theme_classic() +
+            theme(legend.position = "top",
+                  legend.direction = "horizontal"))
+
+# create a folder for saving simulated data sets
+if(!dir.exists("sim-data")){
+  dir.create("sim-data")
+}
+
+# create a folder for saving brms fits
+if(!dir.exists("brms-fits")){
+  dir.create("brms-fits")
+}
+
+# create a folder for saving the results of brms fits
+if(!dir.exists("sim-results")){
+  dir.create("sim-results")
+}
+```
+
+```{r}
+# load the fitted model from Experiment 2
+fit_choice <- readRDS("../../../../Exp2/code/analysis/data-analysis/brms-fits/fit_exp_HP_9_LP_7.rds")
+
+# load the data from Experiment 2
+df <- readRDS("../../../../Exp2/data/processed/df_cleaned.rds")
+```
+
+## Simulate data
+
+```{r}
+
+set.seed(12543)
+
+# generate a template for new data set 
+df_sim_tmp <- list(
+  EV_ratio = unique(df$EV_ratio),
+  game1_outcome_num = c(0.5, -0.5),
+  delay_num = c(0.5, -0.5),
+  HP_position = c("left", "right"),
+  subject_ID = 101:200
+  ) %>%
+  cross_df()
+
+# generate predictions for 100 draws - 100 simulated data sets
+df_pred <- predict(fit_choice, 
+                   newdata = df_sim_tmp, 
+                   summary = FALSE,
+                   allow_new_levels = TRUE,
+                   ndraws = 100)
+
+# save as 100 separate csv files
+for (sim in 1:100) {
+  df_sim <- df_sim_tmp %>% mutate(choose_HP = df_pred[sim, ])
+  write_csv(df_sim, file = paste0("sim-data/sim_", sim, ".csv"))
+}
+```
+
+## Fit models
+
+```{r}
+
+for (sim in 1:1) {
+  # load data
+  df_one <- read_csv(paste0("sim-data/sim_", sim, ".csv"))
+  brms_file_name <- paste0("brms-fits/fit_", sim)
+  
+  fit_sim <- brm(
+    choose_HP ~ EV_ratio * game1_outcome_num * delay_num +
+      (EV_ratio * game1_outcome_num * delay_num|subject_ID),
+    family = bernoulli(link = "logit"),
+    prior =
+      c(
+        prior(normal(0, 2), class = Intercept),
+        prior(normal(0, 1), class = b),
+        prior(normal(0, 1), class = sd),
+        prior(lkj(2), class = cor)
+      ),
+    data = df_one,
+    cores = 4,
+    iter = 7000,
+    warmup = 2000,
+    seed = 1234,
+    file = brms_file_name,
+    backend = "cmdstanr"
+  )
+  
+  # get the estimates for all fixed effects
+  result_one <- summary(fit_sim)[["fixed"]]
+  
+  # do a bit formatting
+  result_one <- as_tibble(result_one, rownames = NA) %>%
+    rownames_to_column(var = "parameter") %>%
+    # add sim number
+    mutate(sim = sim)
+  
+  # save the results to a csv file
+  write_csv(result_one, paste0("sim-results/results_", sim, ".csv"))
+}
+
+
+
+```
+
+## Results
+
+```{r}
+
+# load all result files
+sim_results <- list.files("sim-results/", full.names = TRUE) %>%
+  map_dfr(read_csv)
+
+# number of simulated experiments in which the 95% CI of
+# the EV ratio * delay interaction effect does not include 0
+EV_delay_effs <- sim_results %>%
+  filter(parameter == "EV_ratio:delay_num") %>%
+  mutate(
+    rep = ifelse(`l-95% CI` > 0, "Exclude 0", "Include 0"),
+    rep = factor(rep, levels = c("Include 0", "Exclude 0"))
+  ) %>%
+  arrange(`l-95% CI`, Estimate) %>%
+  mutate(row_id=row_number())
+
+prop_rep <- mean(EV_delay_effs$rep == "Exclude 0")
+
+# plot all point estimates and 95% CIs
+EV_delay_plot <- EV_delay_effs %>%
+  ggplot(aes(row_id, Estimate, color = rep)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_errorbar(aes(ymin = `l-95% CI`, ymax = `u-95% CI`)) +
+  geom_point() +
+  labs(x = "Simulation number",
+       y = "Estimate (log odds ratio)",
+       color = "95% CI")
+
+# save as a png file
+ggsave("plots/EV_delay.png", EV_delay_plot, width = 6, height = 3)
+```

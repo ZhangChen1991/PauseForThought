@@ -1,0 +1,72 @@
+---
+title: "Pause for thought Experiment 3 - check test data"
+author: "Zhang Chen"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+format: 
+  html:
+    code-fold: true
+editor: visual
+execute: 
+  warning: false
+  error: false
+toc: true
+toc-depth: 2
+---
+
+## Load libraries and data
+
+```{r}
+library(tidyverse)
+
+df_main <- 
+  read_csv("../../../data/test/PauseForThought_main_test.csv")
+```
+
+## Check main data
+
+```{r}
+
+# check the number of trials in each block
+df_main %>%
+  count(block_number)
+
+# check the number of experimental and catch trials
+df_main %>%
+  count(block_number, trial_type)
+
+# have a look at the catch trials
+df_catch <- df_main %>%
+  filter(trial_type == "catch")
+
+# the catch trials should be divided into 
+# the game 1 outcome (2) * delay (2) cells
+df_catch %>%
+  count(game1_outcome, delay)
+
+# for each catch trial, the left-right position of the HP option
+# should be counterbalanced
+df_catch_position <- df_catch %>%
+  arrange(game2_HP_amount, game2_HP_prob, game2_LP_amount, game2_LP_prob,
+          game1_outcome, delay) %>%
+  select(game2_HP_amount, game2_HP_prob, game2_LP_amount, game2_LP_prob,
+          game1_outcome, delay, game2_pos)
+
+# check the unique pairs from the catch trials
+df_catch %>%
+  select(game2_HP_prob, game2_HP_amount, game2_LP_prob, game2_LP_amount) %>%
+  unique()
+
+# have a look at the exp trials
+df_exp <- df_main %>%
+  filter(trial_type == "exp")
+
+# the exp trials should be evenly divided into
+# the game 1 outcome (2) by delay (2) by game 2 pos(2) cells
+df_exp %>%
+  count(game1_outcome, delay, game2_pos)
+
+# check the unique pairs from the Vancouver Gambling task
+df_exp %>%
+  select(game2_HP_prob, game2_HP_amount, game2_LP_prob, game2_LP_amount) %>%
+  unique()
+```
