@@ -202,7 +202,7 @@ var factor_risky_vs_risky =
   block3 = jsPsych.randomization.shuffle(block3);
   block4 = jsPsych.randomization.shuffle(block4);
 
-  N_block = 6; // the task contains 8 blocks in total, 2 practice and 4 experimental blocks. //CE: 8 or six blocks? 2 plus 4 is six
+  N_block = 6; // the task contains 6 blocks in total, 2 practice and 4 experimental blocks.
 
 /********************************************************
 Informed consent and demographic information
@@ -396,7 +396,7 @@ var bonus = {
 
     var total_points = 0;
 
-    // randomly pick 2 guessing game CE: two or four
+    // randomly pick 4 guessing games
     var html_string = "<p>This is the end of this experiment. Thank you for your participation!</p>" +
       "<p>The program has randomly picked the following 4 guessing games:</p>";
 
@@ -931,7 +931,10 @@ var game2_select_screen = {
 function show_game2_outcome() {
 
   function spin_wheel(){
-    // based on the outcome, determine how to spin the wheel CE: game1 wheel?
+    // based on the outcome, determine how to spin the wheel
+    // note that I use the same html string for both game 1 and game 2 outcomes
+    // the div element in the outcome phase is called game1-wheel,
+    // which is used in game 2 (i.e. the choice game) as well.
     var wheel = document.getElementById("game1-wheel");
 
     // randomly determine the spin degree, and hence the outcome of game 2
@@ -950,7 +953,8 @@ function show_game2_outcome() {
   }
 
 
-  // function to show the outcome in text, and play corresponding sound CE: what does the game1-utcome do here?
+  // function to show the outcome in text, and play corresponding sound
+  // note I use the same outcome screen for both game 1 and game 2.
   function show_outcome() {
     if (game2_outcome_amount > 0) {
       document.getElementById("game1-outcome").innerHTML = '<p style="color:green;">+' + game2_outcome_amount + '</p>';
@@ -991,7 +995,7 @@ function game2_outcome_screen_html(){
   '<div class = "radius deg_90"></div>' +
   '</div>';
 
-  // add the outcome message CE: again: game1 outcome?
+  // add the outcome message
   game_html = game_html + '<div id = "game1-outcome"></div>';
 
   // add audio files
