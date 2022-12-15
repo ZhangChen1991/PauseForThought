@@ -1,0 +1,1 @@
+subject_ID,age,gender,nationality,exp_part,block_number,trial_number,trial_type,delay,game1_startRT,game1_color,game1_respKey,game1_respRT,game1_outcome,game2_delay_premature,game2_startRT,game2_HP_prob,game2_HP_amount,game2_LP_prob,game2_LP_amount,game2_pos,game2_respKey,game2_respRT,game2_choice,game2_outcome
