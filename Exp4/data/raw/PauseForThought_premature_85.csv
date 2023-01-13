@@ -1,0 +1,16 @@
+subject_ID,block_number,trial_number,phase,response_number,key,rt
+85,3,3,delay,1,space,1676
+85,3,13,delay,1,space,1259
+85,4,5,delay,1,space,242
+85,4,39,delay,1,space,1967
+85,4,41,delay,1,space,5
+85,4,47,delay,1,space,252
+85,5,5,delay,1,space,78
+85,5,9,delay,1,space,99
+85,5,17,delay,1,space,1430
+85,6,9,delay,1,space,212
+85,6,27,delay,1,space,168
+85,6,29,delay,1,space,113
+85,6,31,delay,1,space,306
+85,6,47,delay,1,space,165
+85,6,51,delay,1,space,490
