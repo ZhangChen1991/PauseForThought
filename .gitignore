@@ -40,3 +40,9 @@ vignettes/*.pdf
 
 # ignore all .DS_Store files
 **/.DS_Store
+
+# ignore all (sub-)folders called 'brms-fit'
+# this is where I will save the brms models
+# they are too large for github
+
+brms-fits/
