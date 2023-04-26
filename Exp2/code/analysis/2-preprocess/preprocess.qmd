@@ -1,0 +1,181 @@
+---
+title: "Experiment 2 - Preprocess"
+author: 
+  - name: "Zhang Chen"
+    orcid: 0000-0002-3500-9182
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+format: 
+  html:
+    code-fold: true
+    code-tools: true
+editor: visual
+execute: 
+  warning: false
+  error: false
+toc: true
+toc-depth: 3
+---
+
+## Load libraries and raw data
+
+```{r}
+# load libraries
+library(tidyverse)
+library(patchwork)
+
+# set the theme for all ggplot2 figures
+theme_set(theme_classic() +
+            theme(legend.position = "top",
+                  legend.direction = "horizontal"))
+```
+
+```{r}
+# load the main data files
+df_main <- 
+  list.files("../../../data/raw/", pattern = "main", full.names = TRUE) %>%
+  map_dfr(~read_csv(.x, col_types = cols(.default = col_character())))
+```
+
+## Participants
+
+```{r}
+# demographics
+df_demo <- df_main %>%
+  group_by(subject_ID) %>%
+  sample_n(1) %>%
+  filter(subject_ID != "subject_ID") %>%
+  ungroup()
+
+# do some data cleaning
+df_demo <- df_demo %>%
+  mutate(
+    age = as.numeric(age),
+    nationality = str_to_title(nationality),
+    nationality = recode(nationality, "Poland" = "Polish",
+                         "Germany" = "German", "Mexico" = "Mexican",
+                         "United States" = "American",
+                         "Hungarian/White" = "Hungarian",
+                         "Uk" = "British", "United Kingdom" = "British",
+                         "Spain" = "Spanish", "Belgium" = "Belgian")
+  )
+
+# compute gender and age statistics
+n_total <- nrow(df_demo)
+n_male <- sum(df_demo$gender == "male")
+n_female <- sum(df_demo$gender == "female")
+
+M_age <- round(mean(df_demo$age), 1)
+SD_age <- round(sd(df_demo$age), 1)
+```
+
+In total, `r n_total` participants (`r n_male` males, `r n_female` females; M~age~ = `r M_age`; SD~age~ = `r SD_age`) took part in the experiment via Prolific.co on Nov 25th and Nov 28th, 2022. Another two participants initially signed up for the experiment but then returned. One participant was timed out. No data was recorded for the latter 3 participants. Eligibility criteria included:
+
+1.  Between 18 and 55 years old;
+
+2.  Having an approval rate of at least 85%;
+
+3.  Having English as one of the fluent languages;
+
+4.  Reporting no color blindness.
+
+5.  Not having participated in the previous experiment.
+
+@fig-nationality shows the distribution of the self-reported nationalities of all participants.
+
+```{r}
+#| label: fig-nationality
+#| fig-cap: Distribution of self-reported nationality.
+#| fig-width: 5
+#| fig-height: 6
+
+# nationality distribution
+df_demo %>%
+  group_by(nationality) %>%
+  mutate(n=n()) %>%
+  ggplot(aes(x = reorder(nationality, n))) +
+  geom_bar() +
+  labs(x = "Nationality", y = "Number of Participants") +
+  coord_flip()
+```
+
+## Data cleaning
+
+```{r}
+# count the number of trials recorded for all participants
+trials_count <- df_main %>% count(subject_ID)
+
+# Participant 3 has 114 trials, 1 more than the correct number (113).
+# However, they did not restart the experiment.
+# Check if certain trials were recorded twice.
+unique_acount <- df_main %>%
+  mutate(
+    unique_trial = paste(subject_ID, exp_part, 
+                         block_number, trial_number, sep = "_")
+  ) %>%
+  count(unique_trial)
+
+# Indeed, for participant 3, somehow one trial was recorded twice.
+# I visually inspected the content of these two rows,
+# the values for all variables are indeed all the same.
+
+# Remove such repeated recording from the data frame.
+df_main <- df_main %>%
+  mutate(
+    unique_trial = paste(subject_ID, exp_part, 
+                         block_number, trial_number, sep = "_")
+  ) %>%
+  group_by(unique_trial) %>%
+  sample_n(1) %>%
+  ungroup()
+
+# now check the number of trials again - all good
+trials_count <- df_main %>% count(subject_ID)
+```
+
+One participant has 114 rows - somehow one trial was recorded twice in the file. After removing this extra repeated trial, all participants have 113 rows of data recorded. No participant restarted the experiment. Data from all participants are therefore retained at this stage.
+
+```{r}
+# clean the main data frame
+df_main <- df_main %>%
+  # select the experimental blocks
+  filter(exp_part == "exp") %>%
+  # some variables should be numeric values
+  mutate(
+    across(c(subject_ID, age, block_number, game1_startRT,
+             game1_respRT, game2_respRT), as.numeric),
+    across(game2_delay_premature:game2_LP_amount, as.numeric)
+  )
+
+# compute some new variables
+df_main <- df_main %>%
+  mutate(
+    # compute the expected values of each option
+    HP_EV = game2_HP_amount * game2_HP_prob,
+    LP_EV = game2_LP_amount * game2_LP_prob,
+    # determine which option has a higher expected value
+    high_EV_option = ifelse(HP_EV > LP_EV, "HP", "LP"),
+    # determine whether participants picked the high EV option
+    choose_high_EV = ifelse(game2_choice == high_EV_option, "yes", "no"),
+    # compute the EV ratio on each trial
+    EV_ratio = (HP_EV - LP_EV)/(HP_EV + LP_EV) * 2,
+    # use effect-coding for both categorical predictors
+    game1_outcome_num = ifelse(game1_outcome == "loss", 0.5, -0.5),
+    delay_num = ifelse(delay == "yes", 0.5, -0.5),
+    # the outcome variable: choose HP = 1, choose LP = 0
+    game2_choose_HP = ifelse(game2_choice == "HP", 1, 0)
+  )
+
+# check the data type of all columns before proceeding
+# str(df_main)
+
+# check the number of trials again
+trials_count <- df_main %>% count(subject_ID)
+```
+
+## Save cleaned data
+
+Save the cleaned data for further analyses.
+
+```{r}
+write_csv(df_main, "../../../data/processed/df_main_exp2.csv")
+```

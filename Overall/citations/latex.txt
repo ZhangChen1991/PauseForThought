@@ -1,3 +1,3 @@
-We conducted all analyses in R \parencite[version 4.2.1;][]{R-base}.
+We conducted all analyses in R \parencite[version 4.2.2;][]{R-base}.
 
-Furthermore, we used the following R packages: brms \parencite[version 2.17.0;][]{R-brms}, cmdstanr \parencite[version 0.5.3;][]{R-cmdstanr}, knitr \parencite[version 1.39;][]{R-knitr}, and tidyverse \parencite[version 1.3.2;][]{R-tidyverse}.
+Furthermore, we used the following R packages: afex \parencite[version 1.2.0;][]{R-afex}, bayesplot \parencite[version 1.10.0;][]{R-bayesplot}, bayestestR \parencite[version 0.13.0;][]{R-bayestestR}, brms \parencite[version 2.18.0;][]{R-brms}, cmdstanr \parencite[version 0.5.3;][]{R-cmdstanr}, ggpubr \parencite[version 0.6.0;][]{R-ggpubr}, kableExtra \parencite[version 1.3.4;][]{R-kableExtra}, knitr \parencite[version 1.41;][]{R-knitr}, loo \parencite[version 2.5.1;][]{R-loo}, MASS \parencite[version 7.3.58.1;][]{R-MASS}, Rmisc \parencite[version 1.5.1;][]{R-Rmisc}, sjPlot \parencite[version 2.8.12;][]{R-sjPlot}, tidybayes \parencite[version 3.0.2;][]{R-tidybayes}, and tidyverse \parencite[version 1.3.2;][]{R-tidyverse}.

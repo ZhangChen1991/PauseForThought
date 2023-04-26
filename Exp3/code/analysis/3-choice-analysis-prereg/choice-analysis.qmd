@@ -1,0 +1,665 @@
+---
+title: "Experiment 3 - choice analysis (pre-registered dataset)"
+author: 
+  - name: "Zhang Chen"
+    orcid: 0000-0002-3500-9182
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+format: 
+  html:
+    code-fold: true
+    code-tools: true
+editor: visual
+execute: 
+  warning: false
+  error: false
+toc: true
+toc-depth: 3
+---
+
+For this set of analyses, I use the pre-registered data set with 100 participants.
+
+## Load libraries and data
+
+```{r}
+# load libraries
+library(MASS)
+library(Rmisc)
+library(tidyverse)
+library(ggpubr)
+
+library(extraDistr)
+library(loo)
+library(bridgesampling)
+library(brms)
+library(cmdstanr)
+library(bayesplot)
+library(bayestestR)
+library(tidybayes)
+library(sjPlot)
+
+# parallelize the chains using all the cores
+options(mc.cores = parallel::detectCores())
+
+# set the theme for all ggplot2 figures
+theme_set(theme_bw() +
+            theme(legend.position = "top",
+                  legend.direction = "horizontal"))
+
+# create a folder for saving brms fits
+if(!dir.exists("brms-fits")){
+  dir.create("brms-fits")
+}
+
+# load the cleaned data
+df_main <- read_csv("../../../data/processed/df_main_exp3_prereg.csv")
+```
+
+## Choices
+
+### Catch trials
+
+In this experiment, I included two types of catch trials, either the high-probability option or the low-probability option has a much higher expected value than the other (in the latter LP-optimal catch trials, the HP option actually has an EV of 0). Here I plot how often participants chose the higher EV option for these two types of catch trials (@fig-catch-choice).
+
+```{r}
+#| label: fig-catch-choice
+#| fig-cap: The proportion of choosing the high EV option on the catch trials when the high-probability option (top) or the low-probability option (bottom) has a higher EV.
+#| fig-width: 7
+#| fig-height: 5 
+
+# catch trials
+df_catch_choices <- df_main %>%
+  filter(trial_type == "catch") %>%
+  group_by(subject_ID, high_EV_option) %>%
+  summarize(
+    # the total number of trials, should be 12 for all participants
+    n_total = n(),
+    # the number of trials on which people chose the high EV option
+    n_high_EV =  sum(choose_high_EV == "yes"),
+    # the proportion of choosing the high EV option
+    prop_high_EV = n_high_EV / n_total* 100
+  ) %>%
+  ungroup()
+
+# plot the choices on the catch trials
+ggplot(df_catch_choices, aes(subject_ID, prop_high_EV)) +
+  geom_line(aes(group = 1), color = "gray") +
+  geom_point() +
+  labs(x = "Participant", 
+       y = "The proportion of choosing high EV options") +
+  facet_wrap(~high_EV_option, ncol = 1)
+
+# compute some descriptives
+catch_choices_descriptive <- df_catch_choices %>%
+  group_by(high_EV_option) %>%
+  summarize(
+    mean = mean(n_high_EV),
+    sd = sd(n_high_EV),
+    min = min(n_high_EV),
+    max = max(n_high_EV)
+  )
+```
+
+### Experimental trials
+
+#### EV ratios
+
+In this analysis, I use the EV ratio between two options, the outcome of game 1 (loss = 0.5, win = -0.5) and whether there was a pause or not (yes = 0.5, no = -0.5) and their interactions as predictors to predict whether participants chose the HP option or not on each trial. I use the maximum random structure by including both random intercept and all random slopes per participant.
+
+```{r}
+# find the participants that need to be excluded,
+# here I do not exclude any participants
+high_prob_cutoff <- 9
+low_prob_cutoff <- 9
+
+subject_exclude1 <- df_catch_choices %>%
+  filter(
+    high_EV_option == "HP",
+    n_high_EV < high_prob_cutoff
+    ) %>% .$subject_ID
+
+subject_exclude2 <- df_catch_choices %>%
+  filter(
+    high_EV_option == "LP",
+    n_high_EV < low_prob_cutoff
+    ) %>% .$subject_ID
+
+df_exp_selected <- df_main %>%
+  filter(
+    !subject_ID %in% subject_exclude1,
+    !subject_ID %in% subject_exclude2,
+    trial_type == "exp"
+  )
+
+# fit a brms model - go for the maximum random structure
+brms_file_name <- 
+  paste("brms-fits/fit_exp_HP", 
+        high_prob_cutoff, "LP", low_prob_cutoff, sep = "_")
+
+fit_exp <- brm(
+  game2_choose_HP ~ EV_ratio * game1_outcome_num * delay_num +
+    (EV_ratio * game1_outcome_num * delay_num|subject_ID),
+  family = bernoulli(link = "logit"),
+  prior = 
+    c(
+      prior(normal(0, 2), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_exp_selected,
+  cores = 4,
+  iter = 15000,
+  warmup = 5000,
+  seed = 1234,
+  file = brms_file_name,
+  backend = "cmdstanr"
+)
+
+# save the data for later analysis
+write_csv(df_exp_selected, 
+          "../../../data/processed/df_exp_exp3_prereg.csv")
+
+```
+
+Some general posterior predictive checks (@fig-ppc-general).
+
+```{r}
+#| label: fig-ppc-general
+#| fig-cap: General posterior predictive checks.
+#| fig-subcap: 
+#| - "As a function of delay"
+#| - "As a function of game 1 outcome"
+#| - "As a function of EV ratio"
+#| layout: [[1, 1], [1]]
+#| fig-width: 8
+#| fig-height: 8
+
+
+# model diagnostics
+# check the trace plot, looks good.
+# plot(fit_exp)
+
+# posterior predictive checks
+yrep <- posterior_predict(fit_exp)
+
+ppc_bars_grouped(df_exp_selected$game2_choose_HP, yrep, 
+                 df_exp_selected$delay, prob = 0.95, freq = FALSE)
+
+ppc_bars_grouped(df_exp_selected$game2_choose_HP, yrep, 
+                 df_exp_selected$game1_outcome, prob = 0.95, freq = FALSE)
+
+ppc_bars_grouped(df_exp_selected$game2_choose_HP, yrep, 
+                 df_exp_selected$EV_ratio, prob = 0.95, freq = FALSE)
+```
+
+Make a plot to show the effects of EV ratio and delay.
+
+```{r}
+#| label: fig-EV-ratio-delay
+#| fig-cap: Probability of choosing the HP option as a function of EV ratio and pause.
+#| fig-width: 6
+#| fig-height: 6
+
+# Here I will plot the probability of choosing the HP option
+# as a function of the EV ratio and whether there was a delay or not
+# EV ratio will be the x axis, and delay (yes vs. no) as two colors
+# here I define a small adjustment value to the x axis (i.e. EV ratio),
+# that moves all no delay condition data points a bit to the left,
+# and the delay condition data points to the right, to reduce overlapping.
+x_adj_amount <- 0.025
+
+# compute the probability of choosing HP for each participant
+# in each condition.
+plot_raw_data <- df_exp_selected %>%
+  group_by(subject_ID, EV_ratio, delay) %>%
+  summarize(p_HP = mean(game2_choose_HP)) %>%
+  mutate(
+    # add a bit adjustment as mentioned above
+    EV_ratio_adj = ifelse(delay == "yes", x_adj_amount, -x_adj_amount),
+    EV_ratio_plot = EV_ratio + EV_ratio_adj
+  )
+
+# get the predicted prob of choosing HP from brms
+int_conds <- list(
+  EV_ratio = unique(df_exp_selected$EV_ratio),
+  delay_num = c(-0.5, 0.5)
+)
+
+plot_prediction <- 
+  conditional_effects(
+    fit_exp, 
+    "EV_ratio:delay_num",
+    int_conditions = int_conds)
+
+# turn the predictions into a tibble
+plot_pred <- as_tibble(
+  plot_prediction$`EV_ratio:delay_num`
+  ) %>%
+  mutate(
+    # similarly, add a little adjustment to the EV ratio
+    delay = ifelse(delay_num == 0.5, "yes", "no"),
+    EV_ratio_adj = ifelse(delay == "yes", x_adj_amount, -x_adj_amount),
+    EV_ratio_plot = EV_ratio + EV_ratio_adj
+  )
+
+# plot the results
+EV_delay_plot <- plot_raw_data %>%
+  ggplot(aes(EV_ratio_plot, p_HP, color = delay)) +
+  # plot raw data per participant as transparent open circles
+  # jitter the dots vertically a bit to reduce overlapping
+  geom_jitter(alpha = 0.2, height = 0.05, shape = 1) +
+  # connect the predicted prob of choosing HP with lines
+  geom_line(data = plot_pred, 
+            aes(x = EV_ratio_plot,
+                y = estimate__,
+                group = delay),
+            alpha = 0.4) +
+  # estimates as solid points
+  geom_point(data = plot_pred, 
+             aes(EV_ratio_plot, 
+                 estimate__)) +
+  # add 95% CI as error bars
+  geom_errorbar(data = plot_pred,
+                aes(x = EV_ratio_plot, 
+                    y = estimate__,
+                    ymin = lower__, 
+                    ymax = upper__),
+                width = 0.05) +
+  labs(x = "EV ratio", 
+       y = "P(Choose the HP option)",
+       color = "Pause")
+
+EV_delay_plot
+
+# save as a png file
+ggsave(filename = "../5-plots/EV_delay_Exp3_reg.png", 
+       EV_delay_plot,
+       width = 4, height = 4)
+```
+
+Make a similar plot, but this time also take the previous outcome into account.
+
+```{r}
+#| label: fig-EV-ratio-delay-outcome
+#| fig-cap: Probability of choosing the HP option as a function of EV ratio, pause, and previous outcome.
+#| fig-width: 7
+#| fig-height: 5
+
+source("function/choice_plot_functions.R")
+
+# select parameters of interest
+var_selected <- get_variables(fit_exp)[1:8]
+
+# get posterior draws for these parameters
+draws <- fit_exp %>% as_draws_df(variable = var_selected) 
+
+choice_params_plot <- plot_choice_params(draws)
+
+choice_plots <- plot_choice(draws)
+
+choice_pause_outcome_plot <- choice_plots$p1
+
+choice_pause_outcome_plot
+
+ggsave("../plots/choice_EV_exp3_prereg.png",
+       choice_pause_outcome_plot,
+       width = 5.5, height = 3.5)
+```
+
+```{r, results='asis'}
+tab_model(fit_exp)
+```
+
+#### Prob and amount
+
+```{r}
+# compute the prob ratio and amount ratio between two options
+df_exp_selected <- df_exp_selected %>%
+  mutate(
+    prob_ratio = (game2_HP_prob - game2_LP_prob)/(game2_HP_prob + game2_LP_prob) * 2,
+    amount_ratio = (game2_HP_amount - game2_LP_amount)/(game2_HP_amount + game2_LP_amount) * 2
+  )
+
+# get the unique trials and compute the mean prob_ratio and amount_ratio
+df_unique <- df_exp_selected %>%
+  select(game2_HP_prob, game2_HP_amount, game2_LP_prob, game2_LP_amount, prob_ratio, amount_ratio) %>%
+  unique()
+
+prob_ratio_mean <- mean(df_unique$prob_ratio)
+amount_ratio_mean <- mean(df_unique$amount_ratio)
+
+# center the prob_ratio and amount_ratio predictors
+df_exp_selected <- df_exp_selected %>%
+  mutate(
+    prob_ratio_centered = prob_ratio - prob_ratio_mean,
+    amount_ratio_centered = amount_ratio - amount_ratio_mean
+  )
+
+# fit a brms model
+brms_file_name <- "brms-fits/fit_prob_amount"
+
+fit_prob_amount <- brm(
+  game2_choose_HP ~ prob_ratio_centered * amount_ratio_centered *
+                    game1_outcome_num * delay_num +
+                    (prob_ratio_centered * amount_ratio_centered *
+                    game1_outcome_num * delay_num|subject_ID),
+  family = bernoulli(link = "logit"),
+  prior = 
+    c(
+      prior(normal(0, 2), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_exp_selected,
+  cores = 4,
+  iter = 15000,
+  warmup = 5000,
+  seed = 1234,
+  file = brms_file_name,
+  backend = "cmdstanr"
+)
+```
+
+```{r}
+#| label: fig-ppc-general-2
+#| fig-cap: General posterior predictive checks.
+#| fig-subcap: 
+#| - "As a function of delay"
+#| - "As a function of game 1 outcome"
+#| - "As a function of EV ratio"
+#| layout: [[1, 1], [1]]
+#| fig-width: 8
+#| fig-height: 8
+
+# model diagnostics
+# check the trace plot, looks good.
+# plot(fit_prob_amount)
+
+# posterior predictive checks
+yrep <- posterior_predict(fit_prob_amount)
+
+ppc_bars_grouped(df_exp_selected$game2_choose_HP, yrep, 
+                 df_exp_selected$delay, prob = 0.95, freq = FALSE)
+
+ppc_bars_grouped(df_exp_selected$game2_choose_HP, yrep, 
+                 df_exp_selected$game1_outcome, prob = 0.95, freq = FALSE)
+
+ppc_bars_grouped(df_exp_selected$game2_choose_HP, yrep, 
+                 df_exp_selected$EV_ratio, prob = 0.95, freq = FALSE)
+```
+
+```{r}
+var_selected <- get_variables(fit_prob_amount)[1:16]
+
+draws <- fit_prob_amount %>%
+  as_draws_df(variable = var_selected) %>%
+  pivot_longer(cols = all_of(var_selected),
+               names_to = "parameter",
+               values_to = "estimate") %>%
+  mutate(parameter = 
+           factor(parameter, levels = var_selected,
+                  labels = c("Intercept",
+                             "Probability",
+                             "Amount",
+                             "Prev outcome (loss vs. win)",
+                             "Pause (yes vs. no)",
+                             "Prob * Amount",
+                             "Prob * Prev outcome",
+                             "Amount * Prev outcome",
+                             "Prob * Pause",
+                             "Amount * Pause",
+                             "Prev outcome * Pause",
+                             "Prob * Amount * Prev outcome",
+                             "Prob * Amount * Pause",
+                             "Prob * Prev outcome * Pause",
+                             "Amount * Prev outcome * Pause",
+                             "Prob * Amount * Prev outcome * Pause"))
+  )
+
+prob_amount_post_plot <- draws %>%
+  ggplot(aes(x = estimate, y = parameter)) +
+  stat_halfeye() +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(x = "Posterior distribution (log odds-ratio)", y = "")+
+  scale_y_discrete(limits=rev) +
+  theme(axis.text = element_text(size = 10, color = "black"),
+        axis.title = element_text(size = 11))
+
+prob_amount_post_plot
+
+# another version with only a few variables of interest
+param_selected <- c("Probability", "Prob * Prev outcome",
+                    "Prob * Pause", "Amount",
+                    "Amount * Prev outcome", "Amount * Pause")
+
+prob_amount_post_selected_plot <- draws %>%
+  filter(parameter %in% param_selected) %>%
+  mutate(parameter = factor(parameter, levels = param_selected)) %>%
+  ggplot(aes(x = estimate, y = parameter)) +
+  stat_halfeye() +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(x = "Posterior distribution (log odds-ratio)", y = "")+
+  scale_y_discrete(limits=rev) +
+  theme(axis.text = element_text(size = 10, color = "black"),
+        axis.title = element_text(size = 11))
+
+# save as a png file
+ggsave(filename = "../5-plots/prob_amount_Exp3_reg.png", 
+       prob_amount_post_plot,
+       width = 7, height = 8)
+```
+
+```{r, results='asis'}
+tab_model(fit_prob_amount)
+```
+
+Compare this model with probability and amount ratios as two separate predictors, with the model from above with only the EV ratio as the key predictor.
+
+```{r, cache=TRUE}
+# compute the loo model fit criteria
+
+# loo_exp <- loo(fit_exp, pointwise = TRUE)
+# loo_prob_amount <- loo(fit_prob_amount, pointwise = TRUE)
+
+# loo_compare(fit_exp, fit_prob_amount, criterion = "loo")
+```
+
+## Between-exp comparisons
+
+### With Experiment 2
+
+Compare the current experiment with Experiment 2.
+
+```{r}
+# load the data from Experiment 2
+df_exp2 <- read_csv("../../../../Exp2/data/processed/df_exp_exp2.csv")
+
+# add experiment number, and adjust the subject ID
+df_exp2 <- df_exp2 %>%
+  mutate(
+    Exp = "Exp2",
+    subject_ID = paste0(Exp, subject_ID, sep = "_")
+  )
+
+# load the data from the current experiment again
+df_exp3 <- read_csv("../../../data/processed/df_exp_exp3_reg.csv")
+
+df_exp3 <- df_exp3 %>%
+  mutate(
+    Exp = "Exp3",
+    subject_ID = paste0(Exp, subject_ID, sep = "_")
+  )
+
+# combine data from both experiments
+df_exp2_exp3 <- df_exp2 %>%
+  bind_rows(df_exp3) %>%
+  mutate(Exp_num = ifelse(Exp == "Exp2", 0.5, -0.5))
+```
+
+```{r}
+# fit a brms model
+brms_file_name <- "brms-fits/fit_choice_exp2_exp3"
+
+fit_choice_exp2_exp3 <- brm(
+  game2_choose_HP ~ EV_ratio * game1_outcome_num * delay_num * Exp_num +
+    (EV_ratio * game1_outcome_num * delay_num|subject_ID),
+  family = bernoulli(link = "logit"),
+  prior = 
+    c(
+      prior(normal(0, 2), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_exp2_exp3,
+  cores = 4,
+  iter = 15000,
+  warmup = 5000,
+  seed = 1234,
+  file = brms_file_name,
+  backend = "cmdstanr"
+)
+```
+
+Again compare the current experiment with Experiment 2, but this time using probability and amount ratio as predictors.
+
+```{r}
+# compute the prob ratio and amount ratio between two options
+df_exp2_exp3 <- df_exp2_exp3 %>%
+  mutate(
+    prob_ratio = (game2_HP_prob - game2_LP_prob)/(game2_HP_prob + game2_LP_prob) * 2,
+    amount_ratio = (game2_HP_amount - game2_LP_amount)/(game2_HP_amount + game2_LP_amount) * 2
+  )
+
+# get the unique trials and compute the mean prob_ratio and amount_ratio
+df_unique <- df_exp2_exp3 %>%
+  select(game2_HP_prob, game2_HP_amount, game2_LP_prob, game2_LP_amount, prob_ratio, amount_ratio) %>%
+  unique()
+
+prob_ratio_mean <- mean(df_unique$prob_ratio)
+amount_ratio_mean <- mean(df_unique$amount_ratio)
+
+# center the prob_ratio and amount_ratio predictors
+df_exp2_exp3 <- df_exp2_exp3 %>%
+  mutate(
+    prob_ratio_centered = prob_ratio - prob_ratio_mean,
+    amount_ratio_centered = amount_ratio - amount_ratio_mean
+  )
+
+# fit a brms model
+brms_file_name <- "brms-fits/fit_prob_amount_exp2_exp3"
+
+fit_prob_amount_exp2_exp3 <- brm(
+  game2_choose_HP ~ prob_ratio_centered * amount_ratio_centered *
+                    game1_outcome_num * delay_num * Exp_num +
+                    (prob_ratio_centered * amount_ratio_centered *
+                    game1_outcome_num * delay_num|subject_ID),
+  family = bernoulli(link = "logit"),
+  prior = 
+    c(
+      prior(normal(0, 2), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_exp2_exp3,
+  cores = 4,
+  iter = 15000,
+  warmup = 5000,
+  seed = 1234,
+  file = brms_file_name,
+  backend = "cmdstanr"
+)
+```
+
+### With Experiment 1
+
+```{r}
+# load the data from Experiment 1
+df_exp1 <- read_csv("../../../../Exp1/data/processed/df_exp_exp1.csv")
+
+# add experiment number, and adjust the subject ID
+df_exp1 <- df_exp1 %>%
+  mutate(
+    Exp = "Exp1",
+    subject_ID = paste0(Exp, subject_ID, sep = "_")
+  )
+
+# load the data from the current experiment again
+df_exp3 <- read_csv("../../../data/processed/df_exp_exp3_reg.csv")
+
+df_exp3 <- df_exp3 %>%
+  mutate(
+    Exp = "Exp3",
+    subject_ID = paste0(Exp, subject_ID, sep = "_")
+  )
+
+# combine data from both experiments
+df_exp1_exp3 <- df_exp1 %>%
+  bind_rows(df_exp3) %>%
+  mutate(Exp_num = ifelse(Exp == "Exp1", 0.5, -0.5))
+```
+
+```{r}
+# fit a brms model
+brms_file_name <- "brms-fits/fit_choice_exp1_exp3"
+
+fit_choice_exp1_exp3 <- brm(
+  game2_choose_HP ~ EV_ratio * game1_outcome_num * delay_num * Exp_num +
+    (EV_ratio * game1_outcome_num * delay_num|subject_ID),
+  family = bernoulli(link = "logit"),
+  prior = 
+    c(
+      prior(normal(0, 2), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_exp1_exp3,
+  cores = 4,
+  iter = 15000,
+  warmup = 5000,
+  seed = 1234,
+  file = brms_file_name,
+  backend = "cmdstanr"
+)
+```
+
+Compare the current experiment with Experiment 1, with probability and amount ratios as predictors.
+
+```{r}
+# compute the prob ratio and amount ratio between two options
+df_exp1_exp3 <- df_exp1_exp3 %>%
+  mutate(
+    prob_ratio = (game2_HP_prob - game2_LP_prob)/(game2_HP_prob + game2_LP_prob) * 2,
+    amount_ratio = (game2_HP_amount - game2_LP_amount)/(game2_HP_amount + game2_LP_amount) * 2,
+    prob_ratio_centered = prob_ratio - prob_ratio_mean,
+    amount_ratio_centered = amount_ratio - amount_ratio_mean
+  )
+
+# fit a brms model
+brms_file_name <- "brms-fits/fit_prob_amount_exp1_exp3"
+
+fit_prob_amount_exp1_exp3 <- brm(
+  game2_choose_HP ~ prob_ratio_centered * amount_ratio_centered *
+                    game1_outcome_num * delay_num * Exp_num +
+                    (prob_ratio_centered * amount_ratio_centered *
+                    game1_outcome_num * delay_num|subject_ID),
+  family = bernoulli(link = "logit"),
+  prior = 
+    c(
+      prior(normal(0, 2), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_exp1_exp3,
+  cores = 4,
+  iter = 15000,
+  warmup = 5000,
+  seed = 1234,
+  file = brms_file_name,
+  backend = "cmdstanr"
+)
+```

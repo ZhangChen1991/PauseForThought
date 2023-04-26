@@ -1,0 +1,778 @@
+---
+title: "Make RT plots"
+author: 
+  - name: "Zhang Chen"
+    orcid: 0000-0002-3500-9182
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+format: 
+  html:
+    code-fold: true
+    code-tools: true
+editor: visual
+execute: 
+  warning: false
+  error: false
+toc: true
+toc-depth: 3
+---
+
+## Load libraries
+
+```{r}
+# load libraries
+library(MASS)
+library(Rmisc)
+library(afex)
+library(tidyverse)
+library(ggpubr)
+
+library(extraDistr)
+library(loo)
+library(bridgesampling)
+library(brms)
+library(cmdstanr)
+library(bayesplot)
+library(tidybayes)
+library(bayestestR)
+library(sjPlot)
+library(knitr)
+library(kableExtra)
+
+# parallelize the chains using all the cores
+options(mc.cores = parallel::detectCores())
+
+# set the theme for all ggplot2 figures
+theme_set(theme_bw() +
+            theme(legend.position = "top",
+                  legend.direction = "horizontal"))
+```
+
+## Overall RTs
+
+### Load the fitted models
+
+```{r}
+fit_startRT_exp1 <- readRDS("../../Exp1/code/analysis/4-RT-analysis/brms-fits/fit_startRT.rds")
+fit_choiceRT_exp1 <- readRDS("../../Exp1/code/analysis/4-RT-analysis/brms-fits/fit_choiceRT.rds")
+
+fit_startRT_exp2 <- readRDS("../../Exp2/code/analysis/4-RT-analysis/brms-fits/fit_startRT.rds")
+fit_choiceRT_exp2 <- readRDS("../../Exp2/code/analysis/4-RT-analysis/brms-fits/fit_choiceRT.rds")
+
+fit_startRT_exp3 <- readRDS("../../Exp3/code/analysis/4-RT-analysis-complete/brms-fits/fit_startRT.rds")
+fit_choiceRT_exp3 <- readRDS("../../Exp3/code/analysis/4-RT-analysis-complete/brms-fits/fit_choiceRT.rds")
+
+fit_startRT_exp4 <- readRDS("../../Exp4/code/analysis/4-RT-analysis-complete/brms-fits/fit_startRT.rds")
+fit_choiceRT_exp4 <- readRDS("../../Exp4/code/analysis/4-RT-analysis-complete/brms-fits/fit_choiceRT.rds")
+```
+
+### Draw posterior samples
+
+```{r}
+# select parameters of interest
+var_selected <- get_variables(fit_startRT_exp1)[1:4]
+
+draws_startRT_exp1 <- fit_startRT_exp1 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp1", var = "Start RT")
+
+draws_choiceRT_exp1 <- fit_choiceRT_exp1 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp1", var = "Choice RT")
+
+draws_startRT_exp2 <- fit_startRT_exp2 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp2", var = "Start RT")
+
+draws_choiceRT_exp2 <- fit_choiceRT_exp2 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp2", var = "Choice RT")
+
+draws_startRT_exp3 <- fit_startRT_exp3 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp3", var = "Start RT")
+
+draws_choiceRT_exp3 <- fit_choiceRT_exp3 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp3", var = "Choice RT")
+
+draws_startRT_exp4 <- fit_startRT_exp4 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp4", var = "Start RT")
+
+draws_choiceRT_exp4 <- fit_choiceRT_exp4 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp4", var = "Choice RT")
+
+# put all posterior draws into one data frame
+draws <- bind_rows(draws_startRT_exp1, draws_choiceRT_exp1,
+                   draws_startRT_exp2, draws_choiceRT_exp2,
+                   draws_startRT_exp3, draws_choiceRT_exp3,
+                   draws_startRT_exp4, draws_choiceRT_exp4)
+```
+
+### Make plots
+
+Compute the RT in each cell, as well as all effects.
+
+```{r}
+# source the functions used for plotting
+source("../function/overall_RT_plot_functions.R")
+
+# compute extra variables that are needed for plotting
+draws <- compute_RTs(draws)
+
+# plot the RT in each cell of the 2 by 2 design,
+# for all experiments and for both start and choice RT
+RT_plot <- plot_RTs(draws)
+
+# plot the posterior distributions for all parameters
+RT_param_plot <- plot_RT_params(draws)$p1
+RT_param_plot2 <- plot_RT_params(draws)$p2
+
+# plot the main and simple effects, on the original RT scale
+RT_effs_plot <- plot_RT_effs(draws)$p1
+RT_effs_plot2 <- plot_RT_effs(draws)$p2
+
+#save all figures
+ggsave("plots/RT.png", RT_plot, width = 9, height = 5)
+ggsave("plots/RT_params.png", RT_param_plot, width = 6, height = 7)
+ggsave("plots/RT_params2.png", RT_param_plot2, width = 9, height = 5)
+ggsave("plots/RT_effs.png", RT_effs_plot, width = 8, height = 12)
+ggsave("plots/RT_effs2.png", RT_effs_plot2, width = 9, height = 12)
+```
+
+## Median reaction times
+
+Make a similar plot as above, but this time instead of using the model estimates, use the median reaction time per cell per participant.
+
+```{r}
+# load the raw data files
+df_exp1 <- read_csv("../../Exp1/data/processed/df_exp_exp1.csv")
+df_exp2 <- read_csv("../../Exp2/data/processed/df_exp_exp2.csv")
+df_exp3 <- read_csv("../../Exp3/data/processed/df_exp_exp3_complete.csv")
+df_exp4 <- read_csv("../../Exp4/data/processed/df_exp_exp4_complete.csv")
+
+# add experiment name and combine all data
+df_exp1 <- df_exp1 %>%
+  mutate(Exp = "Exp1", subject_ID = paste0(Exp, "_", subject_ID))
+
+df_exp2 <- df_exp2 %>%
+  mutate(Exp = "Exp2", subject_ID = paste0(Exp, "_", subject_ID))
+
+df_exp3 <- df_exp3 %>%
+  mutate(Exp = "Exp3", subject_ID = paste0(Exp, "_", subject_ID))
+
+df_exp4 <- df_exp4 %>%
+  mutate(Exp = "Exp4", subject_ID = paste0(Exp, "_", subject_ID))
+
+df_RT <- bind_rows(df_exp1, df_exp2, df_exp3, df_exp4)
+
+# compute the median start RT for each participant
+df_startRT <- df_RT %>%
+  filter(game2_startRT <= 5000) %>%
+  group_by(Exp, subject_ID, game1_outcome, delay) %>%
+  summarize(RT = median(game2_startRT)) %>%
+  ungroup()
+
+# compute the mean per condition for each experiment
+df_startRT_summary <- df_startRT %>%
+  summarySEwithin(measurevar = "RT",
+                  betweenvars = "Exp",
+                  withinvars = c("game1_outcome", "delay"),
+                  idvar = "subject_ID") %>%
+  mutate(var = "Start RT")
+
+# do the same for choice RT
+df_choiceRT <- df_RT %>%
+  filter(game2_respRT <= 5000) %>%
+  group_by(Exp, subject_ID, game1_outcome, delay) %>%
+  summarize(RT = median(game2_respRT)) %>%
+  ungroup()
+
+# compute the mean per condition for each experiment
+df_choiceRT_summary <- df_choiceRT %>%
+  summarySEwithin(measurevar = "RT",
+                  betweenvars = "Exp",
+                  withinvars = c("game1_outcome", "delay"),
+                  idvar = "subject_ID") %>%
+  mutate(var = "Choice RT")
+
+# combine and plot the results
+df_RT_summary <- df_startRT_summary %>%
+  bind_rows(df_choiceRT_summary) %>%
+  mutate(
+    game1_outcome = factor(game1_outcome, levels = c("loss", "win"), 
+                           labels = c("Loss", "Win")), 
+    var = factor(var, levels = c("Choice RT", "Start RT")),
+    delay = factor(delay, levels = c("no", "yes"),
+                   labels = c("Short (0 or 300 ms)", "Long (3000 ms)"))
+  )
+
+# a dataframe to control the y axis range of the plots
+df_RT_range <- tibble(
+  game1_outcome = rep("Loss", 4),
+  Exp = rep("Exp1", 4),
+  var = rep(c("Start RT", "Choice RT"), each = 2),
+  RT = c(400, 700, 800, 1200)
+)
+
+median_RT_plot <- df_RT_summary %>%
+  ggplot(aes(game1_outcome, RT, color = delay)) +
+  geom_line(aes(group = delay), alpha = 0.6,
+            position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6)) +
+  geom_errorbar(aes(ymin = RT-ci, ymax = RT+ci), width = 0.25,
+                position = position_dodge(width = 0.6)) +
+  # invisible dots to set the range of the plots
+  geom_point(data = df_RT_range, aes(game1_outcome, RT), 
+             color = "white",
+             alpha = 0) +
+  facet_grid(var ~ Exp, scales = "free") +
+  theme(axis.text = element_text(size = 10, color = "black"),
+          axis.title = element_text(size = 11)) +
+  labs(x = "Previous outcome", color = "Pause",
+       y = "Mean median reaction time (milliseconds)",
+       subtitle = "(B) Mean median RT across participants")
+
+# make a similar plot based on model estimates
+df_estimated_RT_summary <- draws %>%
+  select(loss_pause_RT, win_pause_RT, 
+         loss_nopause_RT, win_nopause_RT, 
+         Exp, var) %>%
+  pivot_longer(
+    cols = loss_pause_RT:win_nopause_RT, 
+    names_to = "pause", 
+    values_to = "RT"
+  ) %>%
+  mutate(
+    prev_outcome = ifelse(str_detect(pause, "win"), "Win", "Loss"),
+    pause = ifelse(str_detect(pause, "nopause"), 
+                   "Short (0 or 300 ms)", "Long (3000 ms)"),
+    pause = factor(pause, levels = 
+                     c("Short (0 or 300 ms)", "Long (3000 ms)")),
+    var = factor(var, levels = c("Choice RT", "Start RT")),
+  ) %>%
+  group_by(Exp, var, pause, prev_outcome) %>%
+  summarize(mean = mean(RT),
+            lowerCI = quantile(RT, probs = 0.025),
+            upperCI = quantile(RT, probs = 1-0.025))
+
+estimated_RT_plot <- df_estimated_RT_summary %>%
+  ggplot(aes(prev_outcome, mean, color = pause)) +
+  geom_line(aes(group = pause), alpha = 0.6,
+            position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6)) +
+  geom_errorbar(aes(ymin = lowerCI, ymax = upperCI), width = 0.25,
+                position = position_dodge(width = 0.6)) +
+  # invisible dots to set the range of the plots
+  geom_point(data = df_RT_range, aes(game1_outcome, RT), 
+             color = "white",
+             alpha = 0) +
+  facet_grid(var ~ Exp, scales = "free") +
+  theme(axis.text = element_text(size = 10, color = "black"),
+          axis.title = element_text(size = 11)) +
+  labs(x = "Previous outcome", color = "Pause",
+       y = "Mean estimated reaction time (milliseconds)",
+       subtitle = "(A) Model-estimated mean RT across participants")
+
+
+# combine the plots based on model estimates and the mean observed RTs
+RT_combined_plot <- ggarrange(estimated_RT_plot, median_RT_plot, ncol = 1,
+                              common.legend = TRUE)
+
+ggsave("plots/RT.png", RT_combined_plot, width=6.5, height = 8.5)
+```
+
+I also analyze the median reaction times with repeated-measures ANOVAs, in line with previous work.
+
+```{r, results='asis'}
+# function to run an ANOVA, and return the results as a data frame
+run_anova <- function(rt_tmp){
+  
+  anova_result <- 
+    aov_ez(data = rt_tmp
+          , id = "subject_ID"
+          , within = c("game1_outcome", "delay")
+          , dv = "RT")
+  
+  return (nice(anova_result))
+}
+
+# combine the start RT and choice RT, and run ANOVA
+df_startRT <- df_startRT %>% mutate(var = "Start RT")
+df_choiceRT <- df_choiceRT %>% mutate(var = "Choice RT")
+
+df_RT_combined <- df_startRT %>% bind_rows(df_choiceRT)
+
+startRT_results <- df_RT_combined %>%
+  group_by(var, Exp) %>%
+  group_modify(~run_anova(.x))
+  
+kable(startRT_results) %>%
+  kable_styling()
+```
+
+## Choice RTs as a function of EV
+
+I also fitted models for choice RTs, taking the EV ratios of the options into account. The plots for these models are made here.
+
+### Load the raw data files
+
+```{r}
+# load the cleaned data from the original experiments
+df_exp1 <- read_csv("../../Exp1/data/processed/df_exp_exp1.csv") %>%
+  mutate(Exp = "Exp1", subject_ID = paste(Exp, subject_ID, sep="_"))
+
+df_exp2 <- read_csv("../../Exp2/data/processed/df_exp_exp2.csv") %>%
+  mutate(Exp = "Exp2", subject_ID = paste(Exp, subject_ID, sep="_"))
+
+df_exp3 <- read_csv("../../Exp3/data/processed/df_exp_exp3_complete.csv") %>%
+  mutate(Exp = "Exp3", subject_ID = paste(Exp, subject_ID, sep="_"))
+
+df_exp4 <- read_csv("../../Exp4/data/processed/df_exp_exp4_complete.csv") %>%
+  mutate(Exp = "Exp4", subject_ID = paste(Exp, subject_ID, sep="_"))
+
+# combine them and do a bit data cleaning
+df_choiceRT <- df_exp1 %>%
+  bind_rows(df_exp2, df_exp3, df_exp4) %>%
+  filter(game2_respRT <= 5000)
+
+# compute the mean (median) choice RT in each cell for each participant
+df_choiceRT_subj <- df_choiceRT %>%
+  group_by(Exp, subject_ID, game1_outcome, delay, EV_ratio) %>%
+  summarize(choiceRT = mean(game2_respRT))
+
+# compute the mean choice RT in each cell, collapsing all participants
+df_choiceRT_summary <- df_choiceRT_subj %>%
+  summarySEwithin(measurevar = "choiceRT",
+                  betweenvars = "Exp",
+                  withinvars = c("game1_outcome", "delay", "EV_ratio"),
+                  idvar = "subject_ID") %>%
+  # turn EV ratio back into a numeric variable,
+  # and add a little bit jitter for the purpose of plotting,
+  # also change the label for the delay condition for plotting
+  mutate(
+    EV_ratio = as.numeric(as.character(EV_ratio)),
+    adj = ifelse(delay == "no", -0.025, 0.025),
+    EV_ratio_adj = EV_ratio + adj,
+    delay_label = factor(delay, levels = c("no", "yes"),
+                         labels = c("Short (0 or 300 ms)",
+                                    "Long (3000 ms)"))
+  )
+
+# plot the summary
+df_choiceRT_summary %>%
+  ggplot(aes(EV_ratio_adj, choiceRT, color = delay_label)) +
+  geom_line(aes(group = delay_label), alpha = 0.5) +
+  geom_point() +
+  geom_errorbar(aes(ymin = choiceRT-ci,
+                    ymax = choiceRT+ci),
+                width = 0) +
+  labs(x = "EV ratio", y = "Choice RT (milliseconds)",
+       color = "Pause") +
+  facet_grid(Exp~game1_outcome)
+
+ggsave("plots/choiceRT_EV.png", width = 5, height = 7)
+```
+
+### Load the fitted models
+
+```{r}
+fit_pos_exp1 <-
+  readRDS("../../Exp1/code/analysis/4-RT-analysis/brms-fits/fit_choiceRT_pos_EV.rds")
+
+fit_neg_exp1 <-
+  readRDS("../../Exp1/code/analysis/4-RT-analysis/brms-fits/fit_choiceRT_neg_EV.rds")
+
+fit_pos_exp2 <-
+  readRDS("../../Exp2/code/analysis/4-RT-analysis/brms-fits/fit_choiceRT_pos_EV.rds")
+
+fit_neg_exp2 <-
+  readRDS("../../Exp2/code/analysis/4-RT-analysis/brms-fits/fit_choiceRT_neg_EV.rds")
+
+fit_pos_exp3 <-
+  readRDS("../../Exp3/code/analysis/4-RT-analysis-complete/brms-fits/fit_choiceRT_pos_EV.rds")
+
+fit_neg_exp3 <-
+  readRDS("../../Exp3/code/analysis/4-RT-analysis-complete/brms-fits/fit_choiceRT_neg_EV.rds")
+
+fit_pos_exp4 <-
+  readRDS("../../Exp4/code/analysis/4-RT-analysis-complete/brms-fits/fit_choiceRT_pos_EV.rds")
+
+fit_neg_exp4 <-
+  readRDS("../../Exp4/code/analysis/4-RT-analysis-complete/brms-fits/fit_choiceRT_neg_EV.rds")
+
+
+```
+
+### Draw posterior samples
+
+```{r}
+# get the unique, positive EV ratios 
+EV_ratio_pos <- df_choiceRT %>%
+  filter(EV_ratio > 0) %>%
+  .$EV_ratio %>% unique() %>% sort()
+
+# compute the mean EV ratio
+EV_ratio_pos_mean <- mean(EV_ratio_pos)
+
+# get the unique, negative EV ratios 
+EV_ratio_neg <- df_choiceRT %>%
+  filter(EV_ratio < 0) %>%
+  .$EV_ratio %>% unique() %>% sort()
+
+# compute the mean EV ratio
+EV_ratio_neg_mean <- mean(EV_ratio_neg)
+
+
+# select parameters of interest
+var_selected <- get_variables(fit_pos_exp1)[1:8]
+
+# get posterior draws from all fitted models,
+# do these for the ones with positive EV ratios first
+draws_pos_exp1 <- fit_pos_exp1 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp1")
+
+draws_pos_exp2 <- fit_pos_exp2 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp2")
+
+draws_pos_exp3 <- fit_pos_exp3 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp3")
+
+draws_pos_exp4 <- fit_pos_exp4 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp4")
+
+draws_pos <- bind_rows(draws_pos_exp1, draws_pos_exp2,
+                       draws_pos_exp3, draws_pos_exp4)
+
+draws_pos <- compute_RTs_EV(draws_pos)
+
+# do the same for the ones with negative EV ratios
+draws_pos_exp1 <- fit_pos_exp1 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp1")
+
+draws_pos_exp2 <- fit_pos_exp2 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp2")
+
+draws_pos_exp3 <- fit_pos_exp3 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp3")
+
+draws_pos_exp4 <- fit_pos_exp4 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp4")
+
+draws_pos <- bind_rows(draws_pos_exp1, draws_pos_exp2,
+                       draws_pos_exp3, draws_pos_exp4)
+
+draws_pos_RT <- compute_RTs_EV(draws_pos)
+
+# compute summary for the predicted choice RTs
+RT_pos_summary <- draws_pos_RT %>%
+  group_by(Exp, EV_ratio_c, delay_num, prev_outcome_num) %>%
+  summarize(
+    mean = round(mean(RT), 1),
+    lowerCI = round(quantile(RT, probs = 0.025), 1),
+    upperCI = round(quantile(RT, probs = 1-0.025), 1)
+  ) %>%
+  mutate(
+    EV_ratio = EV_ratio_c + EV_ratio_pos_mean,
+    delay_label = ifelse(delay_num == -0.5, "Short (0 or 300 ms)",
+                         "Long (3000 ms)"),
+    delay_label = factor(delay_label, 
+                         levels = c("Short (0 or 300 ms)",
+                         "Long (3000 ms)")),
+    game1_outcome = ifelse(prev_outcome_num == -0.5, "Win", "Loss"),
+    game1_outcome = factor(game1_outcome, levels = c("Win", "Loss"))
+  )
+
+
+# do the same for the ones with negative EV ratios
+draws_neg_exp1 <- fit_neg_exp1 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp1")
+
+draws_neg_exp2 <- fit_neg_exp2 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp2")
+
+draws_neg_exp3 <- fit_neg_exp3 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp3")
+
+draws_neg_exp4 <- fit_neg_exp4 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp4")
+
+draws_neg <- bind_rows(draws_neg_exp1, draws_neg_exp2,
+                       draws_neg_exp3, draws_neg_exp4)
+
+draws_neg_RT <- compute_RTs_EV(draws_neg)
+
+# compute summary for the predicted choice RTs
+RT_neg_summary <- draws_neg_RT %>%
+  group_by(Exp, EV_ratio_c, delay_num, prev_outcome_num) %>%
+  summarize(
+    mean = round(mean(RT), 1),
+    lowerCI = round(quantile(RT, probs = 0.025), 1),
+    upperCI = round(quantile(RT, probs = 1-0.025), 1)
+  ) %>%
+  mutate(
+    EV_ratio = EV_ratio_c + EV_ratio_neg_mean,
+    delay_label = ifelse(delay_num == -0.5, "Short (0 or 300 ms)",
+                         "Long (3000 ms)"),
+    delay_label = factor(delay_label, 
+                         levels = c("Short (0 or 300 ms)",
+                         "Long (3000 ms)")),
+    game1_outcome = ifelse(prev_outcome_num == -0.5, "Win", "Loss"),
+    game1_outcome = factor(game1_outcome, levels = c("Win", "Loss"))
+  )
+
+```
+
+### Plot posterior parameters
+
+```{r}
+# get the draws for each parameter in the brms model
+# for this plot, I ignore the intercept parameter
+draws_neg <- draws_neg %>%
+  mutate(EV_level = "EV ratio = Negative")
+
+draws_pos <- draws_pos %>%
+  mutate(EV_level = "EV ratio = Positive")
+
+draws <- bind_rows(draws_neg, draws_pos)
+
+param_plot_data <- draws %>%
+  pivot_longer(
+    cols = b_game1_outcome_num:
+      `b_game1_outcome_num:delay_num:EV_ratio_c`,
+    names_to = "parameter",
+    values_to = "estimate"
+  ) %>%
+  # do some formatting
+  mutate(
+    parameter = recode(
+      parameter,
+      "b_game1_outcome_num" = "Prev outcome (loss vs. win)",
+      "b_delay_num" = "Pause (long vs. short)",
+      "b_EV_ratio_c" = "EV ratio (centered)",
+      "b_game1_outcome_num:delay_num" = "Prev outcome * Pause",
+      "b_game1_outcome_num:EV_ratio_c" = "Prev outcome * EV ratio",
+      "b_delay_num:EV_ratio_c" = "Pause * EV ratio",
+      "b_game1_outcome_num:delay_num:EV_ratio_c" = "Prev outcome * Pause * EV ratio"
+    ),
+    parameter = factor(
+      parameter,
+      levels = c("Prev outcome (loss vs. win)",
+                 "Pause (long vs. short)",
+                 "EV ratio (centered)",
+                 "Prev outcome * Pause",
+                 "Prev outcome * EV ratio",
+                 "Pause * EV ratio",
+                 "Prev outcome * Pause * EV ratio"
+                 )
+    )
+  )
+
+Exp_levels <- sort(unique(param_plot_data$Exp), decreasing = TRUE)
+
+param_plot_data <- param_plot_data %>%
+  mutate(Exp = factor(Exp, levels = Exp_levels))
+
+RT_EV_param_plot <- param_plot_data %>%
+  ggplot(aes(x = estimate, y = parameter, color = Exp, fill = Exp)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "darkgray") +
+  stat_slab(alpha = 0.5) +
+  stat_pointinterval(point_interval = "mean_qi",
+                     position = position_dodge(width = .7, 
+                                               preserve = "single")) +
+  labs(x = "Posterior estimate (on log RT)",
+       y = "",
+       color = "Experiment", fill = "Experiment") +
+  theme(axis.text = element_text(size = 12, color = "black"),
+        axis.title = element_text(size = 13)) +
+  scale_y_discrete(limits = rev) +
+  facet_grid( ~ EV_level, scales = "free") +
+  # then reverse the legend again, so it starts with Experiment 1
+  guides(fill = guide_legend(reverse = TRUE),
+         color = guide_legend(reverse = TRUE))
+
+# the figure is a bit difficult to read,
+# make a new one with only 95% CIs (thus, no posterior distributions)
+param_plot_data_summary <- param_plot_data %>%
+  group_by(Exp, EV_level, parameter) %>%
+  summarize(
+    mean = mean(estimate),
+    lowerCI = quantile(estimate, probs = 0.025),
+    upperCI = quantile(estimate, probs = 1 - 0.025)
+  )
+
+RT_EV_param_plot2 <- param_plot_data_summary %>%
+  ggplot(aes(x = mean, y = parameter, color = Exp)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "darkgray") +
+  geom_linerange(aes(xmin = lowerCI, xmax = upperCI),
+                 position = position_dodge(width = 0.5)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  labs(x = "Posterior estimate (on log choice RT)",
+       y = "",
+       color = "Experiment", fill = "Experiment") +
+  theme(axis.text = element_text(size = 12, color = "black"),
+        axis.title = element_text(size = 13)) +
+  scale_y_discrete(limits = rev) +
+  facet_grid( ~ EV_level, scales = "free") +
+  # then reverse the legend again, so it starts with Experiment 1
+  guides(fill = guide_legend(reverse = TRUE),
+         color = guide_legend(reverse = TRUE))
+
+ggsave("plots/RT_EV_param.png", RT_EV_param_plot2, width = 8.5, height = 4.5)
+```
+
+### Plot RT as a function of EV
+
+```{r}
+# compute the median choice RT in each cell, collapsing all participants
+df_choiceRT_median_summary <- df_choiceRT_subj %>%
+  group_by(Exp, EV_ratio, delay, game1_outcome) %>%
+  summarize(
+    median = median(choiceRT),
+    mad = mad(choiceRT),
+    lower = quantile(choiceRT, probs = 0.25),
+    upper = quantile(choiceRT, probs = 0.75)
+  ) %>%
+  # add a little jitter to EV ratio for the purpose of plotting,
+  # also change the label for the delay condition for plotting
+  mutate(
+    adj = ifelse(delay == "no", -0.025, 0.025),
+    EV_ratio_adj = EV_ratio + adj,
+    delay_label = factor(delay, levels = c("no", "yes"),
+                         labels = c("Short (0 or 300 ms)",
+                                    "Long (3000 ms)")),
+    game1_outcome = ifelse(game1_outcome == "win", "Win", "Loss"),
+    game1_outcome = factor(game1_outcome, levels = c("Loss", "Win"))
+  )
+
+
+ggplot() +
+  # plot the estimated mean RT for trials with positive EV ratios
+  geom_line(
+    data = RT_pos_summary,
+    mapping = aes(x = EV_ratio, y = mean, 
+                  color = delay_label,
+                  group = delay_label)) +
+  # 95% confidence intervals as ribbons
+  geom_ribbon(
+    data = RT_pos_summary,
+    mapping = aes(x = EV_ratio,
+                  ymin = lowerCI, ymax = upperCI,
+                  fill = delay_label), 
+    alpha = 0.3) +
+  # plot the estimated mean RT for trials with negative EV ratios
+  geom_line(
+    data = RT_neg_summary,
+    mapping = aes(x = EV_ratio, y = mean, 
+                  color = delay_label,
+                  group = delay_label)) +
+  # 95% confidence intervals as ribbons
+  geom_ribbon(
+    data = RT_neg_summary,
+    mapping = aes(x = EV_ratio,
+                  ymin = lowerCI, ymax = upperCI,
+                  fill = delay_label), 
+    alpha = 0.3) +
+  # the median choice RT as points
+  geom_point(
+    data = df_choiceRT_median_summary,
+    mapping = aes(x = EV_ratio_adj, y = median,
+                  color = delay_label)
+    ) +
+  # interquartile range as error bars
+  geom_errorbar(
+    data = df_choiceRT_median_summary,
+    mapping = aes(x = EV_ratio_adj, ymin = lower, ymax = upper,
+                  color = delay_label),
+    width = 0, alpha = 0.5
+    ) +
+  labs(x = "EV ratio", y = "Choice RT (milliseconds)",
+       color = "Pause", fill = "Pause") +
+  facet_grid(Exp~game1_outcome)
+
+ggsave("plots/choiceRT_EV_1.png", width = 6, height = 7.5)
+
+# plot this differently, with previous outcome as colors
+# and whether there is a pause or not as two facets
+
+df_choiceRT_median_summary <- df_choiceRT_subj %>%
+  group_by(Exp, EV_ratio, delay, game1_outcome) %>%
+  summarize(
+    median = median(choiceRT),
+    mad = mad(choiceRT),
+    lower = quantile(choiceRT, probs = 0.25),
+    upper = quantile(choiceRT, probs = 0.75)
+  ) %>%
+  # add a little jitter to EV ratio for the purpose of plotting,
+  # also change the label for the delay condition for plotting
+  mutate(
+    adj = ifelse(game1_outcome == "win", -0.025, 0.025),
+    EV_ratio_adj = EV_ratio + adj,
+    delay_label = factor(delay, levels = c("no", "yes"),
+                         labels = c("Short (0 or 300 ms)",
+                                    "Long (3000 ms)")),
+    game1_outcome = ifelse(game1_outcome == "win", "Win", "Loss"),
+    game1_outcome = factor(game1_outcome, levels = c("Loss", "Win"))
+  )
+
+
+ggplot() +
+  # plot the estimated mean RT for trials with positive EV ratios
+  geom_line(
+    data = RT_pos_summary,
+    mapping = aes(x = EV_ratio, y = mean, 
+                  color = game1_outcome,
+                  group = game1_outcome)) +
+  # 95% confidence intervals as ribbons
+  geom_ribbon(
+    data = RT_pos_summary,
+    mapping = aes(x = EV_ratio,
+                  ymin = lowerCI, ymax = upperCI,
+                  fill = game1_outcome), 
+    alpha = 0.3) +
+  # plot the estimated mean RT for trials with negative EV ratios
+  geom_line(
+    data = RT_neg_summary,
+    mapping = aes(x = EV_ratio, y = mean, 
+                  color = game1_outcome,
+                  group = game1_outcome)) +
+  # 95% confidence intervals as ribbons
+  geom_ribbon(
+    data = RT_neg_summary,
+    mapping = aes(x = EV_ratio,
+                  ymin = lowerCI, ymax = upperCI,
+                  fill = game1_outcome), 
+    alpha = 0.3) +
+  # the median choice RT as points
+  geom_point(
+    data = df_choiceRT_median_summary,
+    mapping = aes(x = EV_ratio_adj, y = median,
+                  color = game1_outcome)
+    ) +
+  # interquartile range as error bars
+  geom_errorbar(
+    data = df_choiceRT_median_summary,
+    mapping = aes(x = EV_ratio_adj, ymin = lower, ymax = upper,
+                  color = game1_outcome),
+    width = 0, alpha = 0.5
+    ) +
+  labs(x = "EV ratio", y = "Choice RT (milliseconds)",
+       color = "Previous outcome", fill = "Previous outcome") +
+  facet_grid(Exp~delay_label)
+
+ggsave("plots/choiceRT_EV_2.png", width = 6, height = 7.5)
+
+```

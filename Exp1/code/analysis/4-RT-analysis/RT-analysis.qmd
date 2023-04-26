@@ -1,0 +1,864 @@
+---
+title: "Experiment 1 - RT analysis"
+author: 
+  - name: "Zhang Chen"
+    orcid: 0000-0002-3500-9182
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+format: 
+  html:
+    code-fold: true
+    code-tools: true
+editor: visual
+execute: 
+  warning: false
+  error: false
+toc: true
+toc-depth: 3
+---
+
+In this set of analyses, I focus on the reaction times of starting game 2 (i.e., start RTs) and those of making a choice in game 2 (i.e., choice RTs).
+
+## Load libraries and data
+
+```{r}
+# load libraries
+library(MASS)
+library(Rmisc)
+library(afex)
+library(tidyverse)
+library(patchwork)
+
+library(extraDistr)
+library(loo)
+library(bridgesampling)
+library(brms)
+library(cmdstanr)
+library(bayesplot)
+library(bayestestR)
+library(tidybayes)
+library(sjPlot)
+
+# parallelize the chains using all the cores
+options(mc.cores = parallel::detectCores())
+
+# set the theme for all ggplot2 figures
+theme_set(theme_bw() +
+            theme(legend.position = "top",
+                  legend.direction = "horizontal"))
+
+# create a folder for saving brms fits
+if(!dir.exists("brms-fits")){
+  dir.create("brms-fits")
+}
+
+# load the cleaned experimental data
+df_exp <- 
+  read_csv("../../../data/processed/df_exp_exp1.csv")
+```
+
+## Start RTs
+
+### Data preparation
+
+Next I examine how quickly participants started game 2 after a win vs. after a loss, and also as a function of whether there was a delay or not.
+
+```{r}
+# trial number before any exclusion
+n_before <- nrow(df_exp)
+
+# exclude trials in which the start RTs were above 5000 milliseconds
+df_after <- df_exp %>% filter(game2_startRT <= 5000)
+
+# trial number after exclusion, and the proportion of excluded trials
+n_after <- nrow(df_after)
+exclude_prop <- round((n_before - n_after)/n_before * 100, 2)
+
+# check the number of remaining trials in each cell for each participant
+trials_count <- df_after %>%
+  count(subject_ID, game1_outcome, delay)
+```
+
+Trials in which the start RT of game 2 was above 5000 milliseconds were excluded (`r exclude_prop`% of all trials). For the remaining participants, each cell in the 2 (game 1 outcome, win vs. loss) by 2 (delay, yes vs. no) contains at least `r min(trials_count$n)` trials, which seems reasonable.
+
+### Mean start RTs
+
+For each participant, I then compute the mean start RT (for game 2) after a win or a loss in game 1, depending on whether there was a delay or not. @fig-mean-startRT shows the mean start RTs as a function of the previous outcome and the delay condition.
+
+```{r}
+#| label: fig-mean-startRT
+#| fig-cap: Mean start RTs for game 2 as a function of game 1 outcome and delay. Error bars stand for 95% within-subject confidence intervals.
+#| fig-width: 6
+#| fig-height: 5
+
+# compute the mean start RT in each cell for each participant
+df_startRTs <- df_after %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(startRT = mean(game2_startRT))
+
+# plot the results
+mean_startRT_plot <- df_startRTs %>%
+  summarySEwithin(measurevar = "startRT",
+                  withinvars = c("game1_outcome", "delay"),
+                  idvar = "subject_ID") %>%
+  ggplot(aes(game1_outcome, startRT, color = delay)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_line(aes(group = delay), linetype = "dashed", alpha = 0.5,
+            position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = startRT - ci, ymax = startRT +ci),
+                position = position_dodge(width = 0.5), width = 0.3) +
+  labs(x = "Previous outcome", 
+       y = "Mean Start RT (milliseconds)",
+       color = "Pause")
+
+mean_startRT_plot
+```
+
+The mean start RT plot shows a different pattern than the median start RT below. However, this seems to be mainly driven by a few slow start RTs. Indeed, using a more stringent cutoff value (startRTs \<= 2500 ms) leads to the same pattern as the median start RT.
+
+```{r}
+#| label: fig-mean-startRT2
+#| fig-cap: Mean start RTs for game 2 as a function of game 1 outcome and delay. Error bars stand for 95% within-subject confidence intervals.
+#| fig-width: 6
+#| fig-height: 5
+
+# compute the mean start RT in each cell for each participant
+df_startRTs <- df_after %>%
+  filter(game2_startRT <= 2500) %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(startRT = mean(game2_startRT))
+
+# plot the results
+mean_startRT_plot <- df_startRTs %>%
+  summarySEwithin(measurevar = "startRT",
+                  withinvars = c("game1_outcome", "delay"),
+                  idvar = "subject_ID") %>%
+  ggplot(aes(game1_outcome, startRT, color = delay)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_line(aes(group = delay), linetype = "dashed", alpha = 0.5,
+            position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = startRT - ci, ymax = startRT +ci),
+                position = position_dodge(width = 0.5), width = 0.3) +
+  labs(x = "Previous outcome", 
+       y = "Mean Start RT (milliseconds)",
+       color = "Pause")
+
+mean_startRT_plot
+
+```
+
+### Median start RTs
+
+Here I repeat the analysis above, this time using the median RT in each cell instead of the mean.
+
+```{r}
+#| label: fig-median-startRT
+#| fig-cap: Median start RTs for game 2 as a function of game 1 outcome and delay. Error bars stand for 95% within-subject confidence intervals.
+#| fig-width: 6
+#| fig-height: 5
+
+# compute the mean start RT in each cell for each participant
+df_startRTs <- df_after %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(startRT = median(game2_startRT))
+
+# plot the results
+median_startRT_plot <- df_startRTs %>%
+  summarySEwithin(measurevar = "startRT",
+                  withinvars = c("game1_outcome", "delay"),
+                  idvar = "subject_ID") %>%
+  ggplot(aes(game1_outcome, startRT, color = delay)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_line(aes(group = delay), linetype = "dashed", alpha = 0.5,
+            position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = startRT - ci, ymax = startRT +ci),
+                position = position_dodge(width = 0.5), width = 0.3) +
+  labs(x = "Previous outcome", 
+       y = "Median Start RT (milliseconds)",
+       color = "Pause")
+
+median_startRT_plot
+```
+
+### Multilevel models
+
+#### Fit model
+
+Fit the data with a hierarchical regression.
+
+```{r}
+# since startRT is positively skewed,
+# take the natural logarithm of the startRT as the dependent variable
+# we add 1 to all observations because in previous experiments,
+# start RTs sometimes can be 0, posing a problem for log-transformation.
+df_startRT <- df_after %>%
+  mutate(log_startRT = log(game2_startRT + 1))
+
+# fit a brms model, with student's t as the likelihood function
+fit_startRT <- brm(
+  log_startRT|trunc(ub = log(5001)) ~  
+    game1_outcome_num * delay_num +
+    (game1_outcome_num * delay_num|subject_ID),
+  family = student(),
+  prior = 
+    c(
+      prior(normal(6.5, 1.5), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(normal(0, 1), class = sigma),
+      prior(gamma(2, 0.1), class = nu),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_startRT,
+  cores = 4,
+  iter = 7000,
+  warmup = 2000,
+  seed = 1234,
+  refresh = 10,
+  file = "brms-fits/fit_startRT",
+  backend = "cmdstanr"
+  )
+```
+
+#### Results
+
+```{r}
+#| label: fig-ppc-startRT
+#| fig-cap: Posterior predictive check for start RT.
+#| fig-width: 5
+#| fig-height: 5
+
+
+# check model diagnostics
+# plot(fit_startRT)
+# the trace plots look okay
+
+# loo(fit_startRT)
+# All Pareto k estimates are good (k < 0.5).
+
+# posterior predictive check
+yrep <- posterior_predict(fit_startRT)
+
+# turn the start RT back to the original scale
+yrep <- exp(yrep) - 1
+
+ppc_dens_overlay(df_startRT$game2_startRT, yrep[1:50, ])
+
+remove(yrep)
+```
+
+```{r, results='asis'}
+# have a look at the summary of posterior distributions
+tab_model(fit_startRT, digits = 3)
+```
+
+#### Plots
+
+```{r}
+# load some custom functions to plot RTs
+# all functions require the posterior draws from brms models as input
+source("function/RT_plot_functions.R")
+
+# select parameters of interest
+var_selected <- get_variables(fit_startRT)[1:4]
+
+draws <- fit_startRT %>% as_draws_df(variable = var_selected) 
+
+# compute extra parameters for all simple and main effects
+draws <- compute_RTs(draws)
+
+# plot RTs in each of the 2 by 2 cells
+startRT_plot <- plot_RTs(draws)
+
+# some minor modification
+startRT_plot <- startRT_plot +
+  labs(y = "Start RT (milliseconds)")
+
+# plot all the effects 
+startRT_effs_plot <- plot_RT_effs(draws)
+
+# some minor modification
+startRT_effs_plot <- startRT_effs_plot +
+  labs(x = "Estimated difference in start RT in Experiment 1 (milliseconds)")
+
+# save the figures
+ggsave("../plots/startRT_Exp1.png", startRT_plot, width = 2.5, height = 5)
+ggsave("../plots/startRT_effs_Exp1.png", startRT_effs_plot, width = 8, height = 6)
+```
+
+```{r}
+#| label: fig-predicted-startRT
+#| fig-cap: Estimated start RT as a function of previous outcome and pause condition
+#| fig-width: 5
+#| fig-height: 5
+
+startRT_plot
+```
+
+```{r}
+#| label: fig-startRT-effs
+#| fig-cap: Esimates of main and simple effects on start RT.
+#| fig-width: 8
+#| fig-height: 5
+
+startRT_effs_plot
+
+```
+
+```{r}
+#| label: fig-predicted-startRT2
+#| fig-cap: Estimated start RT as a function of previous outcome and pause condition, with individual data points.
+#| fig-width: 5
+#| fig-height: 5
+
+# Another plot, that includes the individual data points
+# this plot may be a bit difficult to read the inclusion of individual data points
+# makes the range of RT relatively large. Keep it here for now.
+
+# compute the mean of log start RT in each cell for each participant
+startRT_obs <- df_startRT %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(obs = mean(log_startRT)) 
+
+# get the predicted log start RT from the model
+int_conds <- list(
+  game1_outcome_num = c(-0.5, 0.5),
+  delay_num = c(-0.5, 0.5)
+)
+
+startRT_pred <- conditional_effects(
+  fit_startRT, 
+  "game1_outcome_num:delay_num",
+  int_conditions = int_conds)
+
+# turn the predictions into a tibble
+startRT_pred <- as_tibble(
+  startRT_pred$`game1_outcome_num:delay_num`
+  ) %>%
+  mutate(
+    delay = ifelse(delay_num == 0.5, "yes", "no"),
+    game1_outcome = ifelse(game1_outcome_num == 0.5, "loss", "win")
+  )
+
+startRT_pred_original <- startRT_pred %>%
+  mutate(
+    estimate__ = exp(estimate__) - 1,
+    lower__ = exp(lower__) - 1,
+    upper__ = exp(upper__) - 1
+  )
+
+# make a plot
+startRT_ind_plot <- startRT_obs %>%
+  ggplot(aes(game1_outcome, obs, color = delay)) +
+  geom_point(position = position_jitterdodge(
+    jitter.width = 0.2,
+    jitter.height = 0,
+    dodge.width = 0.5), alpha = 0.1) +
+  geom_point(data = startRT_pred, 
+             aes(game1_outcome, estimate__,
+                 color = delay),
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(data = startRT_pred,
+                aes(x = game1_outcome,
+                    y = estimate__,
+                    ymin = lower__,
+                    ymax = upper__),
+                position = position_dodge(width = 0.5),
+                width = 0.2) +
+  geom_line(data = startRT_pred,
+            aes(x = game1_outcome,
+                y = estimate__,
+                group = delay),
+            position = position_dodge(width = 0.5),
+            linetype = "dashed",
+            alpha = 0.5) +
+  labs(x = "Previous outcome",
+       y = "Logarithm of startRT [log(RT + 1)]",
+       color = "Pause")
+
+startRT_ind_plot
+```
+
+### All trials (no exclusion)
+
+In the analysis above, I excluded trials with start RTs \> 5000 milliseconds, in line with previous work. However, the Student's t distribution should be robust to extreme values (which were also rare). Here, I repeat the analysis above but with no exclusion, to see if the results remain the same.
+
+```{r}
+df_startRT_all <- df_exp %>%
+  mutate(log_startRT = log(game2_startRT + 1))
+
+# fit a brms model, with student's t as the likelihood function
+fit_startRT_all <- brm(
+  log_startRT ~  
+    game1_outcome_num * delay_num +
+    (game1_outcome_num * delay_num|subject_ID),
+  family = student(),
+  prior = 
+    c(
+      prior(normal(6.5, 1.5), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(normal(0, 1), class = sigma),
+      prior(gamma(2, 0.1), class = nu),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_startRT_all,
+  cores = 4,
+  iter = 7000,
+  warmup = 2000,
+  seed = 1234,
+  refresh = 10,
+  file = "brms-fits/fit_startRT_all",
+  backend = "cmdstanr"
+  )
+```
+
+```{r}
+# have a look at the summary of posterior distributions
+tab_model(fit_startRT_all, digits = 3)
+```
+
+```{r}
+# plot to what extent the model predictions capture
+# the median reaction time per cell for each participant
+
+# first, get 1000 posterior draws
+yrep <- posterior_predict(fit_startRT_all, ndraws = 1000)
+
+# turn the RT back to the original scale
+yrep <- exp(yrep) - 1
+
+# transpose the matrix and turn it into a tibble
+df_startRT_pred <- t(yrep) %>%
+  as_tibble()
+
+# add the subject ID, prior outcome and pause condition
+df_startRT_pred$subjectID <- df_exp$subject_ID
+df_startRT_pred$game1_outcome <- df_exp$game1_outcome
+df_startRT_pred$delay <- df_exp$delay
+
+# compute the median predicted RT in each cell
+# for each participant and in each draw
+df_startRT_pred <- df_startRT_pred %>%
+  group_by(subjectID, game1_outcome, delay) %>%
+  summarize(
+    across(V1:V1000, median)
+  ) 
+
+# compute the median observed RT in each cell for each participant
+df_startRT_obs <- df_exp %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(
+    startRT_obs = median(game2_startRT)
+  ) %>%
+  mutate(
+    delay = factor(delay, levels = c("no", "yes"),
+                   labels = c("No Pause (0 ms)", "Pause (3000 ms)")),
+    game1_outcome = factor(game1_outcome, levels = c("loss", "win"),
+                           labels = c("Loss", "Win"))
+  )
+
+# now compute the mean predicted median RT across 1000 draws
+# as well as the lower and upper bound of the 95% CI
+df_startRT_obs$startRT_pred <- apply(df_startRT_pred[4:1003], 1, mean)
+df_startRT_obs$lowerCI <- apply(df_startRT_pred[4:1003], 1, quantile, probs = 0.025)
+df_startRT_obs$upperCI <- apply(df_startRT_pred[4:1003], 1, quantile, probs = 1- 0.025)
+
+# plot the results
+df_startRT_obs %>%
+  ggplot(aes(startRT_obs, startRT_pred)) +
+  geom_point(alpha = 0.4) +
+  geom_errorbar(aes(ymin = lowerCI, ymax = upperCI), alpha = 0.4) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  labs(x = "Observed median startRT (ms)", 
+       y = "Predicted median startRT (ms)") +
+  facet_grid(game1_outcome ~ delay)
+
+# save the plot
+ggsave("../plots/ppc_median_startRT_Exp1.png", width = 6, height = 5)
+```
+
+## Choice RTs
+
+### Data preparation
+
+Next I examine whether the increased sensitivity towards the EV ratio after a delay may be explained by participants making decisions more slowly in the delay condition.
+
+```{r}
+#| label: fig-game2-choiceRT
+#| fig-cap: Histogram of all game 2 choice reaction times.
+#| fig-width: 5
+#| fig-height: 4
+
+# plot a distribution of all game 2 choice RTs
+ggplot(df_exp, aes(game2_respRT)) +
+  geom_histogram(bins = 40) +
+  geom_vline(xintercept = 5000, linetype = "dashed") +
+  labs(x = "Game 2 choice reaction time (milliseconds)")
+```
+
+To reduce the influence of a few long reaction times, I exclude the trials where the choice RT was above 5000 milliseconds.
+
+```{r}
+#| label: fig-game2-choiceRT-per-cell
+#| fig-cap: Choice RT in game 2 as a function of game 1 outcome and delay. Error bars stand for 95% within-subject confidence intervals.
+#| fig-width: 6
+#| fig-height: 5
+
+# number of trials before exclusion
+n_before <- nrow(df_exp)
+
+# exclude trials with choice RTs above 5000 ms
+df_choiceRT <- df_exp %>% filter(game2_respRT <= 5000)
+
+# number of trials after exclusion
+n_after <- nrow(df_choiceRT)
+
+# proportion of excluded trials
+prop_exclude <- round((n_before - n_after)/n_before * 100, 2)
+```
+
+### Mean choice RTs
+
+```{r}
+#| label: fig-mean-choiceRT
+#| fig-cap: Mean choice RTs for game 2 as a function of game 1 outcome and delay. Error bars stand for 95% within-subject confidence intervals.
+#| fig-width: 6
+#| fig-height: 5
+
+df_choiceRT_summary <- df_choiceRT %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(choiceRT = mean(game2_respRT))
+
+# plot the choice RTs
+df_choiceRT_summary %>%
+  summarySEwithin(measurevar = "choiceRT",
+                  withinvars = c("game1_outcome", "delay"),
+                  idvar = "subject_ID") %>%
+  ggplot(aes(game1_outcome, choiceRT, color = delay)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_line(aes(group = delay), linetype = "dashed", alpha = 0.5,
+            position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = choiceRT - ci, ymax = choiceRT +ci),
+                position = position_dodge(width = 0.5), width = 0.3) +
+  labs(x = "Previous outcome", 
+       y = "Mean choice RTs (milliseconds)",
+       color = "Pause")
+```
+
+### Median choice RTs
+
+```{r}
+#| label: fig-median-choiceRT
+#| fig-cap: Median choice RTs for game 2 as a function of game 1 outcome and delay. Error bars stand for 95% within-subject confidence intervals.
+#| fig-width: 6
+#| fig-height: 5
+
+df_choiceRT_summary <- df_choiceRT %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(choiceRT = median(game2_respRT))
+
+# plot the choice RTs
+df_choiceRT_summary %>%
+  summarySEwithin(measurevar = "choiceRT",
+                  withinvars = c("game1_outcome", "delay"),
+                  idvar = "subject_ID") %>%
+  ggplot(aes(game1_outcome, choiceRT, color = delay)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_line(aes(group = delay), linetype = "dashed", alpha = 0.5,
+            position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = choiceRT - ci, ymax = choiceRT +ci),
+                position = position_dodge(width = 0.5), width = 0.3) +
+  labs(x = "Previous outcome", 
+       y = "Median choice RTs (milliseconds)",
+       color = "Pause")
+```
+
+### Multilevel models
+
+#### Fit model
+
+I use log-transformed choice RT as the dependent variable (truncated with a upper bound of log(5001), as above). Both game 1 outcome, whether there was a pause or not and their interaction are included as predictors.
+
+```{r}
+# log-transform the choice RT
+df_choiceRT <- df_choiceRT %>%
+  mutate(log_choiceRT = log(game2_respRT + 1))
+
+# fit a brms model
+fit_choiceRT <- brm(
+  log_choiceRT|trunc(ub = log(5001)) ~  
+    game1_outcome_num * delay_num +
+    (game1_outcome_num * delay_num|subject_ID),
+  family = student(),
+  prior = 
+    c(
+      prior(normal(6.5, 1), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(normal(0, 1), class = sigma),
+      prior(gamma(2, 0.1), class = nu),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_choiceRT,
+  cores = 4,
+  iter = 7000,
+  warmup = 2000,
+  seed = 1234,
+  refresh = 10,
+  file = "brms-fits/fit_choiceRT",
+  backend = "cmdstanr",
+  refresh = 1
+  )
+```
+
+#### Results
+
+```{r}
+#| label: fig-ppc-choiceRT
+#| fig-cap: Posterior predictive check for choice RT.
+#| fig-width: 5
+#| fig-height: 5
+
+# check model diagnostics
+# plot(fit_choiceRT)
+# the traceplots look okay
+
+# loo(fit_choiceRT)
+# All Pareto k estimates are good (k < 0.5).
+
+# posterior predictive check
+yrep <- posterior_predict(fit_choiceRT)
+
+# turn the choice RT back to the original scale
+yrep <- exp(yrep) - 1
+
+ppc_dens_overlay(df_choiceRT$game2_respRT, yrep[1:50, ])
+
+remove(yrep)
+```
+
+```{r,results='asis'}
+tab_model(fit_choiceRT, digits = 3)
+```
+
+#### Plots
+
+```{r}
+# load some custom functions to plot RTs
+# all functions require the posterior draws from brms models as input
+source("function/RT_plot_functions.R")
+
+# select parameters of interest
+var_selected <- get_variables(fit_startRT)[1:4]
+
+draws <- fit_choiceRT %>%
+  as_draws_df(variable = var_selected) 
+
+# compute extra parameters for all simple and main effects
+draws <- compute_RTs(draws)
+
+# plot RTs in each of the 2 by 2 cells
+choiceRT_plot <- plot_RTs(draws)
+
+# some minor modification
+choiceRT_plot <- choiceRT_plot +
+  labs(y = "Choice RT (milliseconds)")
+
+# plot all the effects 
+choiceRT_effs_plot <- plot_RT_effs(draws)
+
+# some minor modification
+choiceRT_effs_plot <- choiceRT_effs_plot +
+  labs(x = "Estimated difference in choice RT in Experiment 1 (milliseconds)")
+
+# save the figures
+ggsave("../plots/choiceRT_Exp1.png", choiceRT_plot, width = 2.5, height = 5)
+ggsave("../plots/choiceRT_effs_Exp1.png", choiceRT_effs_plot, width = 8, height = 6)
+```
+
+```{r}
+#| label: fig-predicted-choiceRT
+#| fig-cap: Estimated choice RT as a function of previous outcome and pause condition
+#| fig-width: 5
+#| fig-height: 5
+
+choiceRT_plot
+```
+
+```{r}
+#| label: fig-choiceRT-effs
+#| fig-cap: Esimates of main and simple effects on choice RT.
+#| fig-width: 8
+#| fig-height: 5
+
+choiceRT_effs_plot
+
+```
+
+```{r}
+#| label: fig-predicted-choiceRT2
+#| fig-cap: Estimated choice RT as a function of previous outcome and pause condition, with individual data points.
+#| fig-width: 5
+#| fig-height: 5
+
+
+# compute the mean of log choice RT in each cell for each participant
+choiceRT_obs <- df_choiceRT %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(obs = mean(log_choiceRT)) 
+
+# get the predicted log choice RT from the model
+int_conds <- list(
+  game1_outcome_num = c(-0.5, 0.5),
+  delay_num = c(-0.5, 0.5)
+)
+
+choiceRT_pred <- conditional_effects(
+  fit_choiceRT, 
+  "game1_outcome_num:delay_num",
+  int_conditions = int_conds)
+
+# turn the predictions into a tibble
+choiceRT_pred <- as_tibble(
+  choiceRT_pred$`game1_outcome_num:delay_num`
+  ) %>%
+  mutate(
+    delay = ifelse(delay_num == 0.5, "yes", "no"),
+    game1_outcome = ifelse(game1_outcome_num == 0.5, "loss", "win")
+  )
+
+choiceRT_pred_original <- choiceRT_pred %>%
+  mutate(
+    estimate__ = exp(estimate__) - 1,
+    lower__ = exp(lower__) - 1,
+    upper__ = exp(upper__) - 1
+  )
+
+# make a plot
+choiceRT_ind_plot <- choiceRT_obs %>%
+  ggplot(aes(game1_outcome, obs, color = delay)) +
+  geom_point(position = position_jitterdodge(
+    jitter.width = 0.2,
+    jitter.height = 0,
+    dodge.width = 0.5), alpha = 0.1) +
+  geom_point(data = choiceRT_pred, 
+             aes(game1_outcome, estimate__,
+                 color = delay),
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(data = choiceRT_pred,
+                aes(x = game1_outcome,
+                    y = estimate__,
+                    ymin = lower__,
+                    ymax = upper__),
+                position = position_dodge(width = 0.5),
+                width = 0.2) +
+  geom_line(data = choiceRT_pred,
+            aes(x = game1_outcome,
+                y = estimate__,
+                group = delay),
+            position = position_dodge(width = 0.5),
+            linetype = "dashed",
+            alpha = 0.5) +
+  labs(x = "Previous outcome",
+       y = "Logarithm of choice RT [log(RT + 1)]",
+       color = "Pause")
+
+choiceRT_ind_plot
+```
+
+### All trials (no exclusion)
+
+```{r}
+df_choiceRT_all <- df_exp %>%
+  mutate(log_choiceRT = log(game2_respRT + 1))
+
+# fit a brms model, with student's t as the likelihood function
+fit_choiceRT_all <- brm(
+  log_choiceRT ~  
+    game1_outcome_num * delay_num +
+    (game1_outcome_num * delay_num|subject_ID),
+  family = student(),
+  prior = 
+    c(
+      prior(normal(6.5, 1.5), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(normal(0, 1), class = sigma),
+      prior(gamma(2, 0.1), class = nu),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_choiceRT_all,
+  cores = 4,
+  iter = 7000,
+  warmup = 2000,
+  seed = 1234,
+  refresh = 10,
+  file = "brms-fits/fit_choiceRT_all",
+  backend = "cmdstanr"
+  )
+```
+
+```{r, results='asis'}
+# have a look at the summary of posterior distributions
+tab_model(fit_choiceRT_all, digits = 3)
+```
+
+```{r}
+# plot to what extent the model predictions capture
+# the median reaction time per cell for each participant
+
+# first, get 1000 posterior draws
+yrep <- posterior_predict(fit_choiceRT_all, ndraws = 1000)
+
+# turn the RT back to the original scale
+yrep <- exp(yrep) - 1
+
+# transpose the matrix and turn it into a tibble
+df_choiceRT_pred <- t(yrep) %>%
+  as_tibble()
+
+# add the subject ID, prior outcome and pause condition
+df_choiceRT_pred$subjectID <- df_exp$subject_ID
+df_choiceRT_pred$game1_outcome <- df_exp$game1_outcome
+df_choiceRT_pred$delay <- df_exp$delay
+
+# compute the median predicted RT in each cell
+# for each participant and in each draw
+df_choiceRT_pred <- df_choiceRT_pred %>%
+  group_by(subjectID, game1_outcome, delay) %>%
+  summarize(
+    across(V1:V1000, median)
+  ) 
+
+# compute the median observed RT in each cell for each participant
+df_choiceRT_obs <- df_exp %>%
+  group_by(subject_ID, game1_outcome, delay) %>%
+  summarize(
+    choiceRT_obs = median(game2_respRT)
+  ) %>%
+  mutate(
+    delay = factor(delay, levels = c("no", "yes"),
+                   labels = c("No Pause (0 ms)", "Pause (3000 ms)")),
+    game1_outcome = factor(game1_outcome, levels = c("loss", "win"),
+                           labels = c("Loss", "Win"))
+  )
+
+# now compute the mean predicted median RT across 1000 draws
+# as well as the lower and upper bound of the 95% CI
+df_choiceRT_obs$choiceRT_pred <- apply(df_choiceRT_pred[4:1003], 1, mean)
+df_choiceRT_obs$lowerCI <- apply(df_choiceRT_pred[4:1003], 1, quantile, probs = 0.025)
+df_choiceRT_obs$upperCI <- apply(df_choiceRT_pred[4:1003], 1, quantile, probs = 1- 0.025)
+
+# plot the results
+df_choiceRT_obs %>%
+  ggplot(aes(choiceRT_obs, choiceRT_pred)) +
+  geom_point(alpha = 0.4) +
+  geom_errorbar(aes(ymin = lowerCI, ymax = upperCI), alpha = 0.4) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  labs(x = "Observed median choiceRT (ms)", 
+       y = "Predicted median choiceRT (ms)") +
+  facet_grid(game1_outcome ~ delay)
+
+# save the plot
+ggsave("../plots/ppc_median_choiceRT_Exp1.png", width = 6, height = 5)
+```

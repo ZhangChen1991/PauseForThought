@@ -1,0 +1,388 @@
+---
+title: "Make choice plots"
+author: 
+  - name: "Zhang Chen"
+    orcid: 0000-0002-3500-9182
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+format: 
+  html:
+    code-fold: true
+    code-tools: true
+editor: visual
+execute: 
+  warning: false
+  error: false
+toc: true
+toc-depth: 3
+---
+
+## Load libraries
+
+```{r}
+# load libraries
+library(MASS)
+library(Rmisc)
+library(afex)
+library(tidyverse)
+library(ggpubr)
+
+library(extraDistr)
+library(loo)
+library(bridgesampling)
+library(brms)
+library(cmdstanr)
+library(bayesplot)
+library(tidybayes)
+library(bayestestR)
+library(sjPlot)
+
+# parallelize the chains using all the cores
+options(mc.cores = parallel::detectCores())
+
+# set the theme for all ggplot2 figures
+theme_set(theme_bw() +
+            theme(legend.position = "top",
+                  legend.direction = "horizontal"))
+```
+
+## Exp 1 and 2
+
+Combine the plots from Experiments 1 and 2
+
+```{r}
+
+# load the plots that are already made
+plot_exp1 <- readRDS("../../Exp1/code/analysis/plots/choice_plot_exp1.rds")
+plot_exp2 <- readRDS("../../Exp2/code/analysis/plots/choice_plot_exp2.rds")
+
+plot_exp1 <- plot_exp1 +
+  labs(subtitle = "Experiment 1") +
+  scale_color_discrete(labels=c('Short (0 ms)', 'Long (3000 ms)')) +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1.0))
+
+plot_exp2 <- plot_exp2 +
+  labs(subtitle = "Experiment 2") +
+  scale_color_discrete(labels=c('Short (0 ms)', 'Long (3000 ms)')) +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1.0))
+
+# combine both plots
+plot_exp1_and_2 <- ggarrange(plot_exp1, plot_exp2, ncol = 1,
+                             common.legend = TRUE)
+
+ggsave("plots/choice_Exp1_2.png", plot_exp1_and_2,
+       width = 5.5, height = 7)
+```
+
+## Exp 3 and 4
+
+Combine the plots from Experiments 3 and 4
+
+```{r}
+# load the plots that are already made
+plot_exp3 <- readRDS("../../Exp3/code/analysis/plots/choice_plot_exp3.rds")
+plot_exp4 <- readRDS("../../Exp4/code/analysis/plots/choice_plot_exp4.rds")
+
+plot_exp3 <- plot_exp3 +
+  labs(subtitle = "Experiment 3") +
+  scale_color_discrete(labels=c('Short (300 ms)', 'Long (3000 ms)')) +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1.0))
+
+plot_exp4 <- plot_exp4 +
+  labs(subtitle = "Experiment 4") +
+  scale_color_discrete(labels=c('Short (300 ms)', 'Long (3000 ms)')) +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1.0))
+
+# combine both plots
+plot_exp3_and_4 <- ggarrange(plot_exp3, plot_exp4, ncol = 1,
+                             common.legend = TRUE)
+
+ggsave("plots/choice_Exp3_4.png", plot_exp3_and_4,
+       width = 5.5, height = 7)
+```
+
+## Overall choice plots
+
+### Load the fitted models
+
+```{r}
+fit_exp1 <- 
+  readRDS("../../Exp1/code/analysis/3-choice-analysis/brms-fits/fit_exp_HP_15.rds")
+
+fit_exp2 <-
+  readRDS("../../Exp2/code/analysis/3-choice-analysis/brms-fits/fit_exp_HP_9_LP_1.rds")
+
+fit_exp3 <-
+  readRDS("../../Exp3/code/analysis/3-choice-analysis-complete/brms-fits/fit_exp_HP_9_LP_0.rds")
+
+fit_exp4 <-
+  readRDS("../../Exp4/code/analysis/3-choice-analysis-complete/brms-fits/fit_exp_LP_0.rds")
+```
+
+### Draw posterior samples
+
+```{r}
+# select parameters of interest
+var_selected <- get_variables(fit_exp1)[1:8]
+
+draws_exp1 <- fit_exp1 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp1")
+
+draws_exp2 <- fit_exp2 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp2")
+
+draws_exp3 <- fit_exp3 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp3")
+
+draws_exp4 <- fit_exp4 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp4")
+
+# put all posterior draws into one data frame
+draws <- bind_rows(draws_exp1, draws_exp2, draws_exp3, draws_exp4)
+
+remove(draws_exp1, draws_exp2, draws_exp3, draws_exp4,
+       fit_exp1, fit_exp2, fit_exp3, fit_exp4)
+```
+
+### Make plots
+
+```{r}
+# source the functions for plotting
+source("../function/overall_choice_plot_functions.R")
+
+choice_params_plot <- plot_choice_params(draws)
+
+# compute the predicted probability of choosing HP in each cell
+draws_probs <- compute_probs(draws)
+
+# draw simple effects
+plots <- plot_choice_effs(draws_probs)
+
+choice_pause_eff_plot <- plots$p1
+choice_outcome_eff_plot <- plots$p2
+
+choice_main_pause_plot <- plots$p3
+choice_main_outcome_plot <- plots$p4
+
+# save all figures
+ggsave("plots/choice_params2.png", choice_params_plot, width = 10, height = 8)
+ggsave("plots/choice_pause_eff.png", choice_pause_eff_plot, width = 4, height = 8)
+ggsave("plots/choice_outcome_eff.png", choice_outcome_eff_plot, width = 4, height = 8)
+
+```
+
+## Choose the high EV option
+
+For each experiment, I also conducted a further exploratory analysis, using (1) the previous outcome (loss vs. win), (2) the pause condition (long vs. short) and (3) whether the high EV option has a high probability or a low probability, to predict whether the chosen option was the one with a higher EV or not. Here, I make a table to summarize the results of all experiments.
+
+```{r}
+# load the fitted models
+fit_EV_exp1 <- readRDS("../../Exp1/code/analysis/3-choice-analysis/brms-fits/fit_high_EV.rds")
+
+fit_EV_exp2 <- readRDS("../../Exp2/code/analysis/3-choice-analysis/brms-fits/fit_high_EV.rds")
+
+fit_EV_exp3 <- readRDS("../../Exp3/code/analysis/3-choice-analysis-complete/brms-fits/fit_high_EV.rds")
+
+fit_EV_exp4 <- readRDS("../../Exp4/code/analysis/3-choice-analysis-complete/brms-fits/fit_high_EV.rds")
+```
+
+```{r, results='asis'}
+tab_model(fit_EV_exp1, fit_EV_exp2, fit_EV_exp3, fit_EV_exp4)
+```
+
+## Amount and probability information
+
+In another set of exploratory analysis, I used the probability ratio and amount ratio as two separate predictors to predict choices.
+
+```{r}
+# load the fitted models
+fit_prob_amount_exp1 <- readRDS("../../Exp1/code/analysis/3-choice-analysis/brms-fits/fit_prob_amount.rds")
+
+fit_prob_amount_exp2 <- readRDS("../../Exp2/code/analysis/3-choice-analysis/brms-fits/fit_prob_amount.rds")
+
+fit_prob_amount_exp3 <- readRDS("../../Exp3/code/analysis/3-choice-analysis-complete/brms-fits/fit_prob_amount.rds")
+
+fit_prob_amount_exp4 <- readRDS("../../Exp4/code/analysis/3-choice-analysis-complete/brms-fits/fit_prob_amount.rds")
+```
+
+```{r, results='asis'}
+tab_model(fit_prob_amount_exp1)
+```
+
+```{r, results='asis'}
+tab_model(fit_prob_amount_exp2)
+```
+
+```{r, results='asis'}
+tab_model(fit_prob_amount_exp3)
+```
+
+```{r, results='asis'}
+tab_model(fit_prob_amount_exp4)
+```
+
+## For pos and neg EV ratios
+
+Here I plot the results from the models that analyzed trials with positive and negative EV ratios separately.
+
+### Load the fitted models
+
+```{r}
+fit_pos_exp1 <- 
+  readRDS("../../Exp1/code/analysis/3-choice-analysis/brms-fits/fit_EV_pos.rds")
+
+fit_neg_exp1 <- 
+  readRDS("../../Exp1/code/analysis/3-choice-analysis/brms-fits/fit_EV_neg.rds")
+
+fit_pos_exp2 <- 
+  readRDS("../../Exp2/code/analysis/3-choice-analysis/brms-fits/fit_EV_pos.rds")
+
+fit_neg_exp2 <- 
+  readRDS("../../Exp2/code/analysis/3-choice-analysis/brms-fits/fit_EV_neg.rds")
+
+fit_pos_exp3 <- 
+  readRDS("../../Exp3/code/analysis/3-choice-analysis-complete/brms-fits/fit_EV_pos.rds")
+
+fit_neg_exp3 <- 
+  readRDS("../../Exp3/code/analysis/3-choice-analysis-complete/brms-fits/fit_EV_neg.rds")
+
+fit_pos_exp4 <- 
+  readRDS("../../Exp4/code/analysis/3-choice-analysis-complete/brms-fits/fit_EV_pos.rds")
+
+fit_neg_exp4 <- 
+  readRDS("../../Exp4/code/analysis/3-choice-analysis-complete/brms-fits/fit_EV_neg.rds")
+```
+
+### Draw posterior samples
+
+```{r}
+# select parameters of interest
+var_selected <- get_variables(fit_pos_exp1)[1:8]
+
+# get posterior draws from all fitted models,
+# do these for the ones with positive EV ratios first
+draws_pos_exp1 <- fit_pos_exp1 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp1")
+
+draws_pos_exp2 <- fit_pos_exp2 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp2")
+
+draws_pos_exp3 <- fit_pos_exp3 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp3")
+
+draws_pos_exp4 <- fit_pos_exp4 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp4")
+
+draws_pos <- bind_rows(draws_pos_exp1, draws_pos_exp2,
+                       draws_pos_exp3, draws_pos_exp4)
+
+# do the same for the ones with negative EV ratios
+draws_neg_exp1 <- fit_neg_exp1 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp1")
+
+draws_neg_exp2 <- fit_neg_exp2 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp2")
+
+draws_neg_exp3 <- fit_neg_exp3 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp3")
+
+draws_neg_exp4 <- fit_neg_exp4 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp4")
+
+draws_neg <- bind_rows(draws_neg_exp1, draws_neg_exp2,
+                       draws_neg_exp3, draws_neg_exp4)
+```
+
+### Plot posterior parameters
+
+```{r}
+# get the draws for each parameter in the brms model
+# for this plot, I ignore the intercept parameter
+draws_neg <- draws_neg %>%
+  mutate(EV_level = "EV ratio = Negative")
+
+draws_pos <- draws_pos %>%
+  mutate(EV_level = "EV ratio = Positive")
+
+draws <- bind_rows(draws_neg, draws_pos)
+
+param_plot_data <- draws %>%
+  pivot_longer(
+    cols = b_EV_ratio_c:
+      `b_EV_ratio_c:game1_outcome_num:delay_num`,
+    names_to = "parameter",
+    values_to = "estimate"
+  ) %>%
+  # do some formatting
+  mutate(
+    parameter = recode(
+      parameter,
+      "b_game1_outcome_num" = "Prev outcome (loss vs. win)",
+      "b_delay_num" = "Pause (long vs. short)",
+      "b_EV_ratio_c" = "EV ratio (centered)",
+      "b_game1_outcome_num:delay_num" = "Prev outcome * Pause",
+      "b_EV_ratio_c:game1_outcome_num" = "Prev outcome * EV ratio",
+      "b_EV_ratio_c:delay_num" = "Pause * EV ratio",
+      "b_EV_ratio_c:game1_outcome_num:delay_num" = "Prev outcome * Pause * EV ratio"
+    ),
+    parameter = factor(
+      parameter,
+      levels = c("Prev outcome (loss vs. win)",
+                 "Pause (long vs. short)",
+                 "EV ratio (centered)",
+                 "Prev outcome * Pause",
+                 "Prev outcome * EV ratio",
+                 "Pause * EV ratio",
+                 "Prev outcome * Pause * EV ratio"
+                 )
+    )
+  )
+
+Exp_levels <- sort(unique(param_plot_data$Exp), decreasing = TRUE)
+
+param_plot_data <- param_plot_data %>%
+  mutate(Exp = factor(Exp, levels = Exp_levels))
+
+# get summaries of the posterior parameter estimates
+param_plot_data_summary <- param_plot_data %>%
+  group_by(Exp, EV_level, parameter) %>%
+  summarize(
+    mean = mean(estimate),
+    lowerCI = quantile(estimate, probs = 0.025),
+    upperCI = quantile(estimate, probs = 1 - 0.025)
+  )
+
+choice_EV_param_plot <- param_plot_data_summary %>%
+  ggplot(aes(x = mean, y = parameter, color = Exp)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "darkgray") +
+  geom_linerange(aes(xmin = lowerCI, xmax = upperCI),
+                 position = position_dodge(width = 0.5)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  labs(x = "Posterior estimate (on log choice RT)",
+       y = "",
+       color = "Experiment", fill = "Experiment") +
+  theme(axis.text = element_text(size = 12, color = "black"),
+        axis.title = element_text(size = 13)) +
+  scale_y_discrete(limits = rev) +
+  facet_grid( ~ EV_level, scales = "free") +
+  # then reverse the legend again, so it starts with Experiment 1
+  guides(fill = guide_legend(reverse = TRUE),
+         color = guide_legend(reverse = TRUE))
+
+ggsave("plots/choice_EV_param.png", choice_EV_param_plot, width = 8.5, height = 4.5)
+```

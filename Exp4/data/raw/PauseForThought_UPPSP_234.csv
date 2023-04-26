@@ -1,0 +1,21 @@
+subject_ID,question_number,factor,resp,rt
+234,1,Perseverance,1,7890
+234,2,Premeditation,1,5189
+234,3,Positive Urgency,1,7654
+234,4,Perseverance,3,4006
+234,5,Premeditation,1,6530
+234,6,Negative Urgency,1,7310
+234,7,Perseverance,2,5683
+234,8,Negative Urgency,2,6298
+234,9,Sensation Seeking,3,2874
+234,10,Positive Urgency,2,4340
+234,11,Perseverance,2,2761
+234,12,Premeditation,1,4658
+234,13,Negative Urgency,2,5422
+234,14,Sensation Seeking,3,5779
+234,15,Negative Urgency,3,4000
+234,16,Sensation Seeking,4,2664
+234,17,Positive Urgency,3,5250
+234,18,Sensation Seeking,3,4825
+234,19,Premeditation,1,2495
+234,20,Positive Urgency,2,4386

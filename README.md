@@ -1,2 +1,1 @@
-# PauseForThought
-Study on the effects of inserting a pause on subsequent risk-taking.
+This repository contains the data, code and materials for the project "Dissociated effects of prior outcomes and pauses on the speed and quality of risky choices". The folders `Exp1` till `Exp4` contain materials for each experiment separately. The folder `Overall` contains some R code for the overall project, such as generating citations for the R packages used and making plots etc.

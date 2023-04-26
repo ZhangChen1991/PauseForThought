@@ -5,7 +5,17 @@
 pack_names <- c("tidyverse",
                 "brms",
                 "cmdstanr",
-                "knitr")
+                "knitr",
+                "MASS",
+                "Rmisc",
+                "ggpubr",
+                "loo",
+                "bayesplot",
+                "bayestestR",
+                "tidybayes",
+                "sjPlot",
+                "afex",
+                "kableExtra")
 
 # sort all packages alphabetically
 pack_names <- sort(pack_names)
