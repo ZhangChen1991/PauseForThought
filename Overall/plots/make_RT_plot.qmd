@@ -213,7 +213,7 @@ df_RT_range <- tibble(
   game1_outcome = rep("Loss", 4),
   Exp = rep("Exp1", 4),
   var = rep(c("Start RT", "Choice RT"), each = 2),
-  RT = c(400, 700, 800, 1200)
+  RT = c(300, 700, 800, 1200)
 )
 
 median_RT_plot <- df_RT_summary %>%
