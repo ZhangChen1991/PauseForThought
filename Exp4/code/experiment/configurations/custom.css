@@ -174,7 +174,7 @@ the wheel used in game 1
 **************************/
 #game1-wheel{
   width: var(--wheel-size);
-	height: var(--wheel-size);
+  height: var(--wheel-size);
   left: var(--game1-wheel-from-left);
   top: var(--game1-wheel-from-top);
   position: absolute;

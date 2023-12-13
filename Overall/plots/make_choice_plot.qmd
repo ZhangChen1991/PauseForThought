@@ -197,6 +197,128 @@ fit_EV_exp4 <- readRDS("../../Exp4/code/analysis/3-choice-analysis-complete/brms
 tab_model(fit_EV_exp1, fit_EV_exp2, fit_EV_exp3, fit_EV_exp4)
 ```
 
+```{r}
+# function to compute the predicted probabilities of
+# choosing the option with a higher expected value
+compute_probs_EV <- function(draws){
+  
+  # a data frame that contains all possible levels in the factors
+  df_design <- list(
+    game1_outcome_num = c(-0.5, 0.5),
+    delay_num = c(-0.5, 0.5),
+    high_EV_option_num = 0 # only interested in the main effect
+    ) %>%
+    cross_df()
+  
+  # compute the predicted probability of choosing the high EV option,
+  draws_overall <- tibble() # an empty data frame to save the results
+  
+  # iterate through the rows of the design data frame
+  # and compute the predicted probability for each posterior draw
+  for (row in 1:nrow(df_design)){
+    
+    # get the factor level for the current row
+    outcome_tmp <- df_design[row, ]$game1_outcome_num
+    delay_tmp <- df_design[row, ]$delay_num
+    high_EV_option_tmp <- df_design[row, ]$high_EV_option_num
+    
+    # compute the predicted probability of choosing high EV 
+    # for each draw
+    draws_tmp <- draws %>%
+      mutate(
+        # compute the log odds-ratio
+        log_OR = b_Intercept + 
+          b_game1_outcome_num * outcome_tmp +
+          b_delay_num * delay_tmp +
+          b_high_EV_option_num * high_EV_option_tmp +
+          `b_game1_outcome_num:delay_num` * outcome_tmp * delay_tmp +
+          `b_game1_outcome_num:high_EV_option_num` * b_game1_outcome_num * high_EV_option_tmp +
+          `b_delay_num:high_EV_option_num` * delay_tmp * high_EV_option_tmp +
+          `b_game1_outcome_num:delay_num:high_EV_option_num` * outcome_tmp * delay_tmp * high_EV_option_tmp,
+        # convert log odds-ratio into probability
+        prob = exp(log_OR)/(1 + exp(log_OR)),
+        # add the factor levels for the current row
+        delay_num = delay_tmp,
+        prev_outcome_num = outcome_tmp,
+        # recode numeric variables into different levels
+        Pause = ifelse(delay_tmp == 0.5, "yes",
+                       ifelse(delay_tmp == -0.5, "no", "combined")),
+        Prev_outcome = ifelse(outcome_tmp == 0.5, "loss",
+                              ifelse(outcome_tmp == -0.5, "win", "combined"))
+        
+      )
+    
+    # add the results of the current row to the overall data frame
+    draws_overall <- bind_rows(draws_overall, draws_tmp)
+  }
+  
+  return(draws_overall)
+}
+
+# select parameters of interest,
+# and compute the predicted probabilities of choosing high EV options
+var_selected <- get_variables(fit_EV_exp1)[1:8]
+
+draws_exp1 <- fit_EV_exp1 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp1") %>%
+  compute_probs_EV() %>%
+  select(Exp:Prev_outcome)
+
+draws_exp2 <- fit_EV_exp2 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp2") %>%
+  compute_probs_EV() %>%
+  select(Exp:Prev_outcome)
+
+draws_exp3 <- fit_EV_exp3 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp3") %>%
+  compute_probs_EV() %>%
+  select(Exp:Prev_outcome)
+
+draws_exp4 <- fit_EV_exp4 %>%
+  as_draws_df(variable = var_selected) %>%
+  mutate(Exp = "Exp4") %>%
+  compute_probs_EV() %>%
+  select(Exp:Prev_outcome)
+
+draws_EV <- bind_rows(draws_exp1, draws_exp2, draws_exp3, draws_exp4)
+
+# make a plot showing the results
+choice_EV_summary <- draws_EV %>%
+  group_by(Exp, Pause, Prev_outcome) %>%
+  summarize(
+    mean = round(mean(prob), 2),
+    lowerCI = round(quantile(prob, probs = 0.025), 2),
+    upperCI = round(quantile(prob, probs = 1-0.025), 2)
+  ) %>%
+  ungroup()
+
+choice_EV_plot <- choice_EV_summary %>%
+  mutate(
+    Prev_outcome = factor(Prev_outcome, levels = c("loss", "win"),
+                          labels = c("Loss", "Win")),
+    Pause = factor(Pause, levels = c("no", "yes"),
+                   labels = c("Short (0 or 300 ms)",
+                              "Long (3000 ms)"))
+  ) %>%
+  ggplot(aes(Prev_outcome, mean, color = Pause)) +
+  geom_line(aes(group = Pause), alpha = 0.6,
+            position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6)) +
+  geom_errorbar(aes(ymin = lowerCI, ymax = upperCI), width = 0.25,
+                position = position_dodge(width = 0.6)) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  facet_wrap(~Exp, nrow = 1) +
+  theme(axis.text = element_text(size = 10, color = "black"),
+        axis.title = element_text(size = 11)) +
+  labs(x = "Previous outcome", color = "Pause",
+       y = "High EV Choice (%)")
+
+ggsave("plots/choiceEV.png", choice_EV_plot, width=6, height = 2.5)
+```
+
 ## Amount and probability information
 
 In another set of exploratory analysis, I used the probability ratio and amount ratio as two separate predictors to predict choices.

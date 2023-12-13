@@ -378,6 +378,55 @@ startRT_ind_plot <- startRT_obs %>%
 startRT_ind_plot
 ```
 
+#### Exploratory analysis
+
+As suggested by a reviewer, here I add previous choice game outcome as an additional predictor.
+
+```{r}
+df_startRT_explore <- df_startRT %>%
+  arrange(subject_ID, block_number, trial_number) %>%
+  group_by(subject_ID, block_number) %>%
+  mutate(prev_game2_outcome = lag(game2_outcome)) %>%
+  # exclude the first trial of each block,
+  # since it is not proceeded by another choice game
+  filter(!is.na(prev_game2_outcome)) %>%
+  mutate(prev_game2_outcome = factor(prev_game2_outcome, levels = c("win", "no-win")))
+
+contrasts(df_startRT_explore$prev_game2_outcome) <- c(-0.5, 0.5)
+
+# fit a brms model, with student's t as the likelihood function
+# remove truncation, otherwise the sampling process takes very long.
+fit_startRT_explore <- brm(
+  log_startRT ~  
+    game1_outcome_num * delay_num * prev_game2_outcome +
+    (game1_outcome_num * delay_num * prev_game2_outcome|subject_ID),
+  family = student(),
+  prior = 
+    c(
+      prior(normal(6.5, 1.5), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(normal(0, 1), class = sigma),
+      prior(gamma(2, 0.1), class = nu),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_startRT_explore,
+  cores = 4,
+  iter = 7000,
+  warmup = 2000,
+  seed = 1234,
+  # refresh = 10,
+  silent = 0,
+  file = "brms-fits/fit_startRT_explore",
+  backend = "cmdstanr"
+  )
+```
+
+```{r, results='asis'}
+# have a look at the summary of posterior distributions
+tab_model(fit_startRT_explore, digits = 3)
+```
+
 ### All trials (no exclusion)
 
 In the analysis above, I excluded trials with start RTs \> 5000 milliseconds, in line with previous work. However, the Student's t distribution should be robust to extreme values (which were also rare). Here, I repeat the analysis above but with no exclusion, to see if the results remain the same.
@@ -641,6 +690,8 @@ remove(yrep)
 tab_model(fit_choiceRT, digits = 3)
 ```
 
+
+
 #### Plots
 
 ```{r}
@@ -764,6 +815,56 @@ choiceRT_ind_plot <- choiceRT_obs %>%
        color = "Pause")
 
 choiceRT_ind_plot
+```
+
+
+#### Exploratory analysis
+
+As suggested by a reviewer, here I add previous choice game outcome as an additional predictor.
+
+```{r}
+df_choiceRT_explore <- df_choiceRT %>%
+  arrange(subject_ID, block_number, trial_number) %>%
+  group_by(subject_ID, block_number) %>%
+  mutate(prev_game2_outcome = lag(game2_outcome)) %>%
+  # exclude the first trial of each block,
+  # since it is not proceeded by another choice game
+  filter(!is.na(prev_game2_outcome)) %>%
+  mutate(prev_game2_outcome = factor(prev_game2_outcome, levels = c("win", "no-win")))
+
+contrasts(df_choiceRT_explore$prev_game2_outcome) <- c(-0.5, 0.5)
+
+# fit a brms model, with student's t as the likelihood function
+# remove truncation, otherwise the sampling process takes very long.
+fit_choiceRT_explore <- brm(
+  log_choiceRT ~  
+    game1_outcome_num * delay_num * prev_game2_outcome +
+    (game1_outcome_num * delay_num * prev_game2_outcome|subject_ID),
+  family = student(),
+  prior = 
+    c(
+      prior(normal(6.5, 1.5), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(normal(0, 1), class = sigma),
+      prior(gamma(2, 0.1), class = nu),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_choiceRT_explore,
+  cores = 4,
+  iter = 7000,
+  warmup = 2000,
+  seed = 1234,
+  # refresh = 10,
+  silent = 0,
+  file = "brms-fits/fit_choiceRT_explore",
+  backend = "cmdstanr"
+  )
+```
+
+```{r, results='asis'}
+# have a look at the summary of posterior distributions
+tab_model(fit_choiceRT_explore, digits = 3)
 ```
 
 ### All trials (no exclusion)

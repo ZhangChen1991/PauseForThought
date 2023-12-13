@@ -310,6 +310,50 @@ saveRDS(choice_pause_outcome_plot, "../plots/choice_plot_exp3.rds")
 tab_model(fit_exp)
 ```
 
+#### Exploratory analysis
+
+Here I conduct an exploratory analysis as suggested by a reviewer, in which I incorporate the outcome of a previous choice game as an additional predictor.
+
+```{r}
+# add the outcome from the previous choice game as a predictor
+df_exp_explore <- df_exp_selected %>%
+  arrange(subject_ID, block_number, trial_number) %>%
+  group_by(subject_ID, block_number) %>%
+  mutate(prev_game2_outcome = lag(game2_outcome)) %>%
+  # exclude the first trial of each block,
+  # since it is not proceeded by another choice game
+  filter(!is.na(prev_game2_outcome)) %>%
+  mutate(prev_game2_outcome = factor(prev_game2_outcome, levels = c("win", "no-win")))
+
+contrasts(df_exp_explore$prev_game2_outcome) <- c(-0.5, 0.5)
+
+fit_exp_explore <- brm(
+  game2_choose_HP ~ EV_ratio * game1_outcome_num * delay_num * prev_game2_outcome+
+    (EV_ratio * game1_outcome_num * delay_num * prev_game2_outcome|subject_ID),
+  family = bernoulli(link = "logit"),
+  prior = 
+    c(
+      prior(normal(0, 2), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_exp_explore,
+  cores = 4,
+  iter = 15000,
+  warmup = 5000,
+  silent = 0,
+  seed = 1234,
+  file = "brms-fits/fit_exp_explore",
+  backend = "cmdstanr"
+)
+```
+
+
+```{r, results='asis'}
+tab_model(fit_exp_explore)
+```
+
 ### High EV choices
 
 In this exploratory analysis, I analyze the probability of choosing the high EV option as a function of previous outcome, pause, and whether the high EV option was a HP or a LP option.
@@ -345,6 +389,50 @@ fit_high_EV <- brm(
 
 ```{r, results='asis'}
 tab_model(fit_high_EV)
+```
+
+#### Exploratory analysis
+
+Here I again add the outcome of a previous game2 outcome as a predictor.
+
+```{r}
+# add the outcome from the previous choice game as a predictor
+df_exp_explore <- df_exp_selected %>%
+  arrange(subject_ID, block_number, trial_number) %>%
+  group_by(subject_ID, block_number) %>%
+  mutate(prev_game2_outcome = lag(game2_outcome)) %>%
+  # exclude the first trial of each block,
+  # since it is not proceeded by another choice game
+  filter(!is.na(prev_game2_outcome)) %>%
+  mutate(prev_game2_outcome = factor(prev_game2_outcome, levels = c("win", "no-win")))
+
+contrasts(df_exp_explore$prev_game2_outcome) <- c(-0.5, 0.5)
+
+fit_high_EV_explore <- brm(
+  choose_high_EV_num ~ game1_outcome_num * delay_num * high_EV_option_num * prev_game2_outcome +
+    (game1_outcome_num * delay_num * high_EV_option_num * prev_game2_outcome|subject_ID),
+  family = bernoulli(link = "logit"),
+  prior = 
+    c(
+      prior(normal(0, 2), class = Intercept),
+      prior(normal(0, 1), class = b),
+      prior(normal(0, 1), class = sd),
+      prior(lkj(2), class = cor)
+    ),
+  data = df_exp_explore,
+  cores = 4,
+  iter = 15000,
+  warmup = 5000,
+  seed = 1234,
+  silent = 0,
+  file = "brms-fits/fit_high_EV_explore",
+  backend = "cmdstanr"
+  # , control = list(adapt_delta = 0.9)
+)
+```
+
+```{r, results='asis'}
+tab_model(fit_high_EV_explore)
 ```
 
 ### Prob and amount
